@@ -1,0 +1,38 @@
+---
+description: PRD hierarchy and spec-kit context for logistics platform
+globs: .specify/**/*, PRD.md, AGENTS.md
+alwaysApply: false
+---
+
+# Spec-Kit & PRD Context
+
+## Golden Source
+
+For **001 ETL Configurator**, the authoritative product requirements are in:
+
+`.specify/specs/001-etl-configurator/001-ETL-PRD.md`
+
+## When Specifying or Clarifying
+
+- Reference `001-ETL-PRD.md` when running `/speckit.specify` or `/speckit.clarify`
+- Do not omit FR-*, GR-*, SC-*, EC-*, or constraint sections from the PRD
+- User stories in `spec.md` should trace to PRD sections (journeys, functional requirements, guardrails)
+
+## Document Roles
+
+| Document | Use |
+|----------|-----|
+| `001-ETL-PRD.md` | Full product requirements – golden source |
+| `spec.md` | Derived spec – user stories, acceptance scenarios |
+| `data-model.md` | Target schema summary |
+| `PRD.md` | Platform index; links to golden sources |
+| `AGENTS.md` | Agent guidance |
+
+## Avoiding Context Loss
+
+When creating requirements from the PRD, ensure coverage of:
+- All 8 core user journeys
+- All functional requirements (FR-1.1 through FR-11.2)
+- All guardrails (GR-1.1 through GR-10.4)
+- Edge cases and constraints sections
+- Success criteria and interaction model
