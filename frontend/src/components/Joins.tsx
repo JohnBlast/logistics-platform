@@ -20,7 +20,12 @@ interface JoinsProps {
 }
 
 export function Joins({ sessionData, profile, onNext, onSkip, onSaveProfile }: JoinsProps) {
-  const [preview, setPreview] = useState<{ before: { quote: number; load: number; dv: number }; after: number; flatRows: Record<string, unknown>[] } | null>(null)
+  const [preview, setPreview] = useState<{
+    before: { quote: number; load: number; dv: number }
+    after: number
+    flatRows: Record<string, unknown>[]
+    joinSteps?: { name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
+  } | null>(null)
   const [loading, setLoading] = useState(false)
   const [nlInput, setNlInput] = useState('')
   const [nlResult, setNlResult] = useState<string | null>(null)
@@ -50,6 +55,7 @@ export function Joins({ sessionData, profile, onNext, onSkip, onSaveProfile }: J
         },
         after: res.rowsSuccessful,
         flatRows: res.flatRows || [],
+        joinSteps: res.joinSteps || [],
       })
     } catch {
       setPreview(null)
@@ -126,23 +132,46 @@ export function Joins({ sessionData, profile, onNext, onSkip, onSaveProfile }: J
       </div>
 
       {preview && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-4 rounded shadow">
-            <h3 className="font-medium mb-2">Before (entity row counts)</h3>
-            <p>Quote: {preview.before.quote}</p>
-            <p>Load: {preview.before.load}</p>
-            <p>Driver+Vehicle: {preview.before.dv}</p>
+        <>
+          {preview.joinSteps && preview.joinSteps.length > 0 && (
+            <div className="bg-white p-4 rounded shadow">
+              <h3 className="font-medium mb-3">How joins flow</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {preview.joinSteps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    {i > 0 && <span className="text-slate-400">→</span>}
+                    <div className="bg-slate-50 border rounded px-3 py-2">
+                      <p className="font-medium text-sm">{step.name}</p>
+                      <p className="text-xs text-slate-600">
+                        {step.leftEntity}.{step.leftKey} ↔ {step.rightEntity}.{step.rightKey}
+                      </p>
+                      <p className="text-xs font-semibold mt-1">
+                        {step.rowsBefore} → {step.rowsAfter} rows
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white p-4 rounded shadow">
+              <h3 className="font-medium mb-2">Before (entity row counts)</h3>
+              <p>Quote: {preview.before.quote}</p>
+              <p>Load: {preview.before.load}</p>
+              <p>Driver+Vehicle: {preview.before.dv}</p>
+            </div>
+            <div className="bg-white p-4 rounded shadow">
+              <h3 className="font-medium mb-2">After (joined flat table)</h3>
+              <p className="text-lg font-semibold">{preview.after} rows</p>
+              {preview.after === 0 && (
+                <p className="text-amber-600 text-sm mt-1">
+                  No rows joined. Check: load_ids in Quote match Load.load_id; Load has allocated_vehicle_id or driver_id matching Driver+Vehicle.
+                </p>
+              )}
+            </div>
           </div>
-          <div className="bg-white p-4 rounded shadow">
-            <h3 className="font-medium mb-2">After (joined flat table)</h3>
-            <p className="text-lg font-semibold">{preview.after} rows</p>
-            {preview.after === 0 && (
-              <p className="text-amber-600 text-sm mt-1">
-                No rows joined. Check: load_ids in Quote match Load.load_id; Load has allocated_vehicle_id or driver_id matching Driver+Vehicle.
-              </p>
-            )}
-          </div>
-        </div>
+        </>
       )}
 
       {sampleRows.length > 0 && (

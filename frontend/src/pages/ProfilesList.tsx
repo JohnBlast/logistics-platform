@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, type Profile } from '../services/api'
 
 export function ProfilesList() {
+  const navigate = useNavigate()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [createName, setCreateName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
-  const [createDataModelVersion, setCreateDataModelVersion] = useState('V1')
+  const [createDataModelVersion, setCreateDataModelVersion] = useState('V2')
   const [createAiMode, setCreateAiMode] = useState<'claude' | 'mocked'>('mocked')
   const [showCreate, setShowCreate] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -29,9 +30,10 @@ export function ProfilesList() {
       setProfiles((prev) => [p, ...prev])
       setCreateName('')
       setCreateDescription('')
-      setCreateDataModelVersion('V1')
+      setCreateDataModelVersion('V2')
       setCreateAiMode('mocked')
       setShowCreate(false)
+      navigate(`/etl/profiles/${p.id}`)
     } catch (e) {
       setError((e as Error).message)
     }

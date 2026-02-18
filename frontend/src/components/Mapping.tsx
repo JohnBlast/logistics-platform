@@ -6,6 +6,26 @@ const REQUIRED_QUOTE = ['quote_id', 'load_id', 'quoted_price', 'status', 'create
 const REQUIRED_LOAD = ['load_id', 'status', 'load_poster_name', 'created_at', 'updated_at']
 const REQUIRED_DV = ['vehicle_id', 'driver_id', 'vehicle_type', 'registration_number', 'name', 'fleet_id', 'created_at', 'updated_at']
 
+const FIELD_LABELS: Record<string, string> = {
+  quote_id: 'Quote reference',
+  load_id: 'Load reference',
+  quoted_price: 'Quoted price (£)',
+  status: 'Status',
+  created_at: 'Created date',
+  updated_at: 'Updated date',
+  load_poster_name: 'Posted by',
+  vehicle_id: 'Vehicle ID',
+  driver_id: 'Driver ID',
+  vehicle_type: 'Vehicle type',
+  registration_number: 'Registration',
+  name: 'Driver name',
+  fleet_id: 'Fleet ID',
+  allocated_vehicle_id: 'Assigned vehicle',
+}
+function fieldLabel(name: string): string {
+  return FIELD_LABELS[name] || name.replace(/_/g, ' ')
+}
+
 interface MappingProps {
   sessionData: {
     quote?: { headers: string[]; rows: Record<string, unknown>[] }
@@ -29,7 +49,6 @@ export function Mapping({
 }: MappingProps) {
   const [suggestions, setSuggestions] = useState<Record<string, { targetField: string; sourceColumn: string; confidence: number }[]>>({})
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  const [columnFilter, setColumnFilter] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const mappings = profile.mappings || {}
   const lockedMappings = profile.lockedMappings || {}
@@ -37,10 +56,10 @@ export function Mapping({
   const loadMappings = mappings.load || {}
   const dvMappings = mappings.driver_vehicle || {}
 
-  const runSuggest = async (suggestRemaining = false) => {
+  const runSuggest = async () => {
     setLoading(true)
     try {
-      const getLocked = (key: string) => (suggestRemaining ? mappings[key] : lockedMappings[key]) || {}
+      const getLocked = (key: string) => lockedMappings[key] || {}
       const aiMode = profile.aiMode
       if (sessionData.quote?.rows?.length) {
         const r = await api.mapping.suggest('quote', sessionData.quote.headers, sessionData.quote.rows, getLocked('quote'), aiMode)
@@ -60,7 +79,7 @@ export function Mapping({
   }
 
   useEffect(() => {
-    runSuggest(false)
+    runSuggest()
   }, [sessionData.quote?.rows?.length, sessionData.load?.rows?.length, sessionData.driver_vehicle?.rows?.length])
 
   const setMapping = (objectType: 'quote' | 'load' | 'driver_vehicle', target: string, source: string) => {
@@ -130,18 +149,11 @@ export function Mapping({
 
       <div className="flex gap-2">
         <button
-          onClick={() => runSuggest(false)}
+          onClick={runSuggest}
           disabled={loading}
           className="px-4 py-2 bg-slate-200 rounded text-sm disabled:opacity-50"
         >
-          {loading ? 'Suggesting...' : 'Suggest mappings'}
-        </button>
-        <button
-          onClick={() => runSuggest(true)}
-          disabled={loading}
-          className="px-4 py-2 bg-slate-200 rounded text-sm disabled:opacity-50"
-        >
-          Suggest remaining
+          {loading ? 'Suggesting...' : 'Suggest mapping'}
         </button>
       </div>
 
@@ -194,25 +206,18 @@ export function Mapping({
             >
               Apply suggested
             </button>
-            {(headers?.length ?? 0) > 10 && (
-              <input
-                type="text"
-                placeholder="Filter columns..."
-                value={columnFilter[key] || ''}
-                onChange={(e) => setColumnFilter((c) => ({ ...c, [key]: e.target.value }))}
-                className="mb-2 border rounded px-2 py-1 text-sm w-full max-w-xs"
-              />
-            )}
             <div className="space-y-2">
               {required.map((field) => {
                 const sug = sugs.find((s) => s.targetField === field)
                 const conf = sug && m[field] === sug.sourceColumn ? sug.confidence : null
-                const filter = (columnFilter[key] || '').toLowerCase()
-                let opts = filter ? (headers || []).filter((h) => h.toLowerCase().includes(filter)) : (headers || [])
+                let opts = headers || []
                 if (m[field] && !opts.includes(m[field])) opts = [m[field], ...opts]
                 return (
-                  <div key={field} className="flex items-center gap-2">
-                    <span className="w-48 font-mono text-sm">{field} *</span>
+                  <div key={field} className="flex items-center gap-2 flex-wrap">
+                    <span className="w-52 text-sm">
+                      <span className="text-slate-700 font-medium">{fieldLabel(field)}</span>
+                      <span className="text-slate-500 ml-1">*</span>
+                    </span>
                     <select
                       value={m[field] || ''}
                       onChange={(e) => setMapping(key, field, e.target.value)}

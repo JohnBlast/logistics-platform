@@ -104,7 +104,18 @@ export const api = {
   },
   pipeline: {
     validate: (profileId: string, sessionData: unknown, opts?: { joinOnly?: boolean; filtersOverride?: unknown[] }) =>
-      fetchApi<{ rowsSuccessful: number; rowsDropped: number; fieldsWithWarnings: string[]; dedupWarnings: string[]; filterFieldWarnings: string[]; flatRows: Record<string, unknown>[] }>(
+      fetchApi<{
+        rowsSuccessful: number
+        rowsDropped: number
+        fieldsWithWarnings: string[]
+        dedupWarnings: string[]
+        filterFieldWarnings: string[]
+        flatRows: Record<string, unknown>[]
+        excludedByFilter?: Record<string, unknown>[]
+        cellsWithWarnings?: number
+        nullOrErrorFields?: string[]
+        joinSteps?: { name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
+      }>(
         '/api/pipeline/validate',
         { method: 'POST', body: JSON.stringify({ profileId, sessionData, joinOnly: opts?.joinOnly, filtersOverride: opts?.filtersOverride }) }
       ),

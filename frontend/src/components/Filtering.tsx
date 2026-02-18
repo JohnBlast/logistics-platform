@@ -25,7 +25,13 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
   const [nlInput, setNlInput] = useState('')
   const [ruleType, setRuleType] = useState<'inclusion' | 'exclusion'>('exclusion')
   const [interpretError, setInterpretError] = useState('')
-  const [preview, setPreview] = useState<{ before: number; after: number; flatRows: Record<string, unknown>[]; filterFieldWarnings?: string[] } | null>(null)
+  const [preview, setPreview] = useState<{
+    before: number
+    after: number
+    flatRows: Record<string, unknown>[]
+    excludedByFilter?: Record<string, unknown>[]
+    filterFieldWarnings?: string[]
+  } | null>(null)
   const [loading, setLoading] = useState(false)
   const filters = (profile.filters || []) as FilterRule[]
 
@@ -39,6 +45,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         before: beforeRes.rowsSuccessful,
         after: res.rowsSuccessful,
         flatRows: res.flatRows || [],
+        excludedByFilter: res.excludedByFilter || [],
         filterFieldWarnings: res.filterFieldWarnings,
       })
     } catch {
@@ -169,12 +176,13 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
       {preview && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white p-4 rounded shadow">
-            <h3 className="font-medium mb-2">Before (after joins)</h3>
+            <h3 className="font-medium mb-2">Before filters</h3>
             <p className="text-lg font-semibold">{preview.before} rows</p>
           </div>
           <div className="bg-white p-4 rounded shadow">
-            <h3 className="font-medium mb-2">After (with filters)</h3>
-            <p className="text-lg font-semibold">{preview.after} rows</p>
+            <h3 className="font-medium mb-2">After filters</h3>
+            <p className="text-lg font-semibold">{preview.after} rows included</p>
+            <p className="text-sm text-slate-600">{preview.before - preview.after} rows excluded</p>
             {preview.after === 0 && filters.length > 0 && (
               <p className="text-amber-600 text-sm mt-1">Filter drops all rows. Save will be blocked.</p>
             )}
@@ -182,9 +190,41 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         </div>
       )}
 
+      {preview && preview.excludedByFilter && preview.excludedByFilter.length > 0 && (
+        <details className="bg-white p-4 rounded shadow">
+          <summary className="font-medium cursor-pointer text-red-700">
+            Excluded by filters ({preview.excludedByFilter.length} sample rows)
+          </summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-red-50">
+                  {Object.keys(preview.excludedByFilter[0] || {}).slice(0, 8).map((c) => (
+                    <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.excludedByFilter.slice(0, 10).map((row, i) => (
+                  <tr key={i} className="border-t">
+                    {Object.keys(preview.excludedByFilter![0] || {}).slice(0, 8).map((c) => (
+                      <td key={c} className="px-2 py-1 truncate max-w-[120px]" title={String(row[c] ?? '')}>
+                        {String(row[c] ?? '')}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
       {sampleRows.length > 0 && (
         <details className="bg-white p-4 rounded shadow">
-          <summary className="font-medium cursor-pointer">Sample rows (first {SAMPLE})</summary>
+          <summary className="font-medium cursor-pointer text-green-700">
+            Included (first {SAMPLE} rows)
+          </summary>
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>

@@ -21,7 +21,7 @@ const OBJECT_SCHEMA_KEYS: Record<string, number[]> = {
 }
 
 export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: IngestionProps) {
-  const [generating, setGenerating] = useState<string | null>(null)
+  const [generating, setGenerating] = useState<'all' | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
   const [schema, setSchema] = useState<{ entities: { name: string; fields: { name: string; required: boolean }[] }[] } | null>(null)
 
@@ -29,31 +29,21 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
     api.schema.get().then(setSchema).catch(() => setSchema(null))
   }, [])
 
-  const handleGenerate = async (objectType: 'load' | 'quote' | 'driver_vehicle') => {
-    setGenerating(objectType)
+  const handleGenerateAll = async () => {
+    setGenerating('all')
     let state = { ...sessionData }
     try {
-      if (objectType === 'load') {
-        const res = await api.ingest.generate('load')
-        state = { ...state, load: { headers: res.headers, rows: res.rows, loadIds: res.loadIds } }
-      } else if (objectType === 'quote') {
-        if (!state.load?.loadIds?.length) {
-          const loadRes = await api.ingest.generate('load')
-          state = { ...state, load: { headers: loadRes.headers, rows: loadRes.rows, loadIds: loadRes.loadIds } }
-        }
-        const res = await api.ingest.generate('quote', { loadIds: state.load!.loadIds })
-        state = { ...state, quote: { headers: res.headers, rows: res.rows } }
-      } else {
-        if (!state.load?.rows?.length) {
-          const loadRes = await api.ingest.generate('load')
-          state = { ...state, load: { headers: loadRes.headers, rows: loadRes.rows, loadIds: loadRes.loadIds } }
-        }
-        const res = await api.ingest.generate('driver_vehicle', { loadRows: state.load!.rows })
-        state = {
-          ...state,
-          driver_vehicle: { headers: res.headers, rows: res.rows },
-          load: { ...state.load!, rows: res.updatedLoadRows || state.load!.rows },
-        }
+      const loadRes = await api.ingest.generate('load')
+      state = { ...state, load: { headers: loadRes.headers, rows: loadRes.rows, loadIds: loadRes.loadIds } }
+
+      const quoteRes = await api.ingest.generate('quote', { loadIds: loadRes.loadIds })
+      state = { ...state, quote: { headers: quoteRes.headers, rows: quoteRes.rows } }
+
+      const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
+      state = {
+        ...state,
+        driver_vehicle: { headers: dvRes.headers, rows: dvRes.rows },
+        load: { ...state.load!, rows: dvRes.updatedLoadRows ?? loadRes.rows },
       }
       onUpdate(state)
     } finally {
@@ -100,10 +90,21 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
       <h2 className="text-lg font-medium">Ingestion</h2>
       <p className="text-slate-600">Upload CSV/Excel or generate dirty data for each object.</p>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="flex flex-wrap gap-4 items-start mb-6">
+        <button
+          onClick={handleGenerateAll}
+          disabled={!!generating}
+          className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50 font-medium"
+        >
+          {generating ? 'Generating...' : 'Generate dirty data'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {objects.map(({ key, label }) => {
           const data = sessionData[key]
           const count = data?.rows?.length ?? 0
+          const cols = data?.rows?.[0] ? Object.keys(data.rows[0]) : []
           return (
             <div key={key} className="bg-white p-4 rounded shadow">
               <h3 className="font-medium mb-2">{label}</h3>
@@ -119,35 +120,47 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
                   </div>
                 </details>
               )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleGenerate(key)}
-                  disabled={!!generating}
-                  className="px-3 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
-                >
-                  {generating === key ? '...' : 'Generate'}
-                </button>
-                <label className="px-3 py-2 border rounded text-sm cursor-pointer">
-                  Upload
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) handleUpload(key, f)
-                    }}
-                    disabled={!!uploading}
-                  />
-                </label>
-              </div>
+              <label className="inline-block px-3 py-2 border rounded text-sm cursor-pointer mt-2">
+                Upload {label}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) handleUpload(key, f)
+                  }}
+                  disabled={!!uploading}
+                />
+              </label>
               {count > 0 && <p className="mt-2 text-sm text-slate-600">{count} rows</p>}
-              {data?.rows?.length && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm">Preview (5 rows)</summary>
-                  <pre className="mt-1 text-xs overflow-auto max-h-32">
-                    {JSON.stringify(data.rows.slice(0, 5), null, 2)}
-                  </pre>
+              {data?.rows?.length && cols.length > 0 && (
+                <details className="mt-2" open={count <= 10}>
+                  <summary className="cursor-pointer text-sm">Preview ({Math.min(5, count)} rows)</summary>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-xs border">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          {cols.slice(0, 6).map((c) => (
+                            <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
+                          ))}
+                          {cols.length > 6 && <th>…</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.rows.slice(0, 5).map((row, i) => (
+                          <tr key={i} className="border-t">
+                            {cols.slice(0, 6).map((c) => (
+                              <td key={c} className="px-2 py-1 truncate max-w-[100px]" title={String(row[c] ?? '')}>
+                                {String(row[c] ?? '')}
+                              </td>
+                            ))}
+                            {cols.length > 6 && <td>…</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </details>
               )}
             </div>
