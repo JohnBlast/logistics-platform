@@ -33,6 +33,9 @@ export interface Profile {
 }
 
 export const api = {
+  health: {
+    ai: () => fetchApi<{ claudeAvailable: boolean }>('/api/health/ai'),
+  },
   profiles: {
     list: () => fetchApi<Profile[]>('/api/profiles'),
     get: (id: string) => fetchApi<Profile>(`/api/profiles/${id}`),
@@ -82,10 +85,10 @@ export const api = {
     enumValues: (field: string) => fetchApi<{ validValues: string[] }>(`/api/schema/enum/${field}`),
     enumFields: (entity: string) =>
       fetchApi<{ enumFields: { field: string; validValues: string[] }[] }>(`/api/schema/enum-fields/${entity}`),
-    suggestEnumMappings: (sourceValues: string[], validValues: string[]) =>
+    suggestEnumMappings: (sourceValues: string[], validValues: string[], aiMode?: 'claude' | 'mocked') =>
       fetchApi<{ suggestions: Record<string, string> }>('/api/schema/suggest-enum-mappings', {
         method: 'POST',
-        body: JSON.stringify({ sourceValues, validValues }),
+        body: JSON.stringify({ sourceValues, validValues, aiMode }),
       }),
   },
   joins: {
@@ -112,7 +115,9 @@ export const api = {
         filterFieldWarnings: string[]
         flatRows: Record<string, unknown>[]
         excludedByFilter?: Record<string, unknown>[]
+        excludedByFilterCount?: number
         cellsWithWarnings?: number
+        nullOrEmptyCells?: number
         nullOrErrorFields?: string[]
         joinSteps?: { name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
       }>(

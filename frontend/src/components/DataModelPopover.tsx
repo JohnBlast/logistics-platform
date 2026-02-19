@@ -28,7 +28,7 @@ export function DataModelPopover() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-blue-600 hover:underline text-sm"
+        className="text-primary hover:underline text-sm font-medium"
       >
         View data model
       </button>
@@ -46,7 +46,7 @@ export function DataModelPopover() {
               <h2 className="text-lg font-semibold">Data Model</h2>
               <button
                 onClick={() => setOpen(false)}
-                className="text-slate-500 hover:text-slate-700 text-2xl leading-none"
+                className="text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)] text-2xl leading-none"
               >
                 ×
               </button>
@@ -60,7 +60,7 @@ export function DataModelPopover() {
                     <div key={e.name} className="border rounded p-3">
                       <h3 className="font-medium mb-1">{e.name}</h3>
                       {e.description && (
-                        <p className="text-slate-600 text-sm mb-2">{e.description}</p>
+                        <p className="text-[rgba(0,0,0,0.6)] text-sm mb-2">{e.description}</p>
                       )}
                       <table className="w-full text-sm">
                         <thead>

@@ -9,6 +9,7 @@ import {
   VEHICLE_TYPES,
 } from '../models/schema.js'
 import { suggestEnumMappings } from '../services/enumMappingService.js'
+import { claudeSuggestEnumMappings } from '../services/claudeService.js'
 
 export const schemaRouter = Router()
 
@@ -58,14 +59,20 @@ schemaRouter.get('/enum-fields/:entity', (req, res) => {
   res.json({ enumFields: fields })
 })
 
-schemaRouter.post('/suggest-enum-mappings', (req, res) => {
-  const { sourceValues, validValues } = req.body
+schemaRouter.post('/suggest-enum-mappings', async (req, res) => {
+  const { sourceValues, validValues, aiMode } = req.body
   if (!Array.isArray(sourceValues) || !Array.isArray(validValues)) {
     return res.status(400).json({ error: 'sourceValues and validValues arrays required' })
   }
-  const suggestions = suggestEnumMappings(
-    sourceValues.map(String),
-    validValues.map(String)
-  )
+  const src = sourceValues.map(String)
+  const valid = validValues.map(String)
+
+  let suggestions: Record<string, string>
+  if (aiMode === 'claude') {
+    const claudeResult = await claudeSuggestEnumMappings(src, valid)
+    suggestions = Object.keys(claudeResult).length > 0 ? claudeResult : suggestEnumMappings(src, valid)
+  } else {
+    suggestions = suggestEnumMappings(src, valid)
+  }
   res.json({ suggestions })
 })

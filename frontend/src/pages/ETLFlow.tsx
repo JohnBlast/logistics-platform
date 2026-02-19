@@ -11,6 +11,15 @@ import { Validation } from '../components/Validation'
 const STEPS = ['ingestion', 'mapping', 'enum_mapping', 'joins', 'filtering', 'validation'] as const
 type Step = (typeof STEPS)[number]
 
+const STEP_LABELS: Record<Step, string> = {
+  ingestion: 'Ingestion',
+  mapping: 'Mapping',
+  enum_mapping: 'Enum mapping',
+  joins: 'Joins',
+  filtering: 'Filtering',
+  validation: 'Validation',
+}
+
 const REQUIRED_QUOTE = ['quote_id', 'load_id', 'quoted_price', 'status', 'created_at', 'updated_at']
 const REQUIRED_LOAD = ['load_id', 'status', 'load_poster_name', 'created_at', 'updated_at']
 const REQUIRED_DV = ['vehicle_id', 'driver_id', 'vehicle_type', 'registration_number', 'name', 'fleet_id', 'created_at', 'updated_at']
@@ -34,6 +43,7 @@ export function ETLFlow() {
   const [error, setError] = useState('')
   const [successToast, setSuccessToast] = useState(false)
   const [lastValidFingerprint, setLastValidFingerprint] = useState<string | null>(null)
+  const [claudeAvailable, setClaudeAvailable] = useState<boolean | null>(null)
 
   const computeFingerprint = () =>
     JSON.stringify({
@@ -86,6 +96,7 @@ export function ETLFlow() {
       })
       .catch(setError)
       .finally(() => setLoading(false))
+    api.health.ai().then((r) => setClaudeAvailable(r.claudeAvailable)).catch(() => setClaudeAvailable(false))
   }, [id])
 
   const handleSave = async () => {
@@ -111,57 +122,76 @@ export function ETLFlow() {
     }
   }
 
-  if (loading || !profile) return <div>Loading...</div>
+  if (loading || !profile) return <div className="text-[rgba(0,0,0,0.6)]">Loading...</div>
   if (profile.status !== 'draft') {
     return (
-      <div>
-        <p>This profile is {profile.status}. Duplicate to edit.</p>
-        <Link to="/etl">← Back to profiles</Link>
+      <div className="p-6 bg-white rounded shadow-md-1">
+        <p className="text-[rgba(0,0,0,0.6)] mb-2">This profile is {profile.status}. Duplicate to edit.</p>
+        <Link to="/etl" className="text-primary hover:underline font-medium">← Back to profiles</Link>
       </div>
     )
   }
 
   return (
     <div>
+      {profile.aiMode === 'claude' && claudeAvailable === false && (
+        <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          Claude AI is selected but the API key is not configured. Add <code className="bg-amber-100 px-1 rounded">ANTHROPIC_API_KEY</code> to your <code className="bg-amber-100 px-1 rounded">.env</code> at project root and restart the backend. Until then, AI features (mapping suggestions, joins, natural-language filters) will not work.
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-6">
-        <Link to="/etl" className="text-blue-600 hover:underline">
+        <Link to="/etl" className="text-primary hover:underline font-medium">
           ← Profiles
         </Link>
-        <span className="text-slate-400">/</span>
-        <span className="font-medium">{profile.name}</span>
+        <span className="text-[rgba(0,0,0,0.38)]">/</span>
+        <span className="font-medium text-[rgba(0,0,0,0.87)]">{profile.name}</span>
+        {profile.aiMode === 'claude' && (
+          <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary/12 text-primary rounded">Claude AI</span>
+        )}
       </div>
 
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        {STEPS.map((s) => {
-          const status = stepStatus[s]
-          return (
-            <button
-              key={s}
-              onClick={() => setStep(s)}
-              className={`px-3 py-2 rounded text-sm capitalize flex items-center gap-1 ${
-                step === s
-                  ? 'bg-blue-600 text-white'
-                  : status === 'error'
-                    ? 'bg-red-100 text-red-800 border border-red-200'
-                    : status === 'skipped'
-                      ? 'bg-slate-100 text-slate-500 border border-slate-200'
-                      : 'bg-slate-200 hover:bg-slate-300'
-              }`}
-            >
-              {s.replace('_', ' ')}
-              {status === 'ok' && step !== s && <span>✓</span>}
-              {status === 'error' && step !== s && <span>!</span>}
-              {status === 'skipped' && step !== s && <span>—</span>}
-            </button>
-          )
-        })}
+      <div className="mb-8">
+        <div className="flex items-center overflow-x-auto pb-2">
+          {STEPS.map((s, idx) => {
+            const status = stepStatus[s]
+            const isActive = step === s
+            const isComplete = status === 'ok' || (step !== s && status !== 'error' && status !== 'skipped')
+            return (
+              <div key={s} className="flex items-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setStep(s)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg transition-all ${
+                    isActive
+                      ? 'bg-primary text-white shadow-md-2 scale-105'
+                      : status === 'error'
+                        ? 'bg-red-50 text-red-800 border-2 border-red-300'
+                        : status === 'skipped'
+                          ? 'bg-black/6 text-[rgba(0,0,0,0.5)] border border-black/12'
+                          : 'bg-white border border-black/12 shadow-md-1 hover:shadow-md-2 hover:border-primary/30'
+                  }`}
+                >
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                    isActive ? 'bg-white/20' : status === 'error' ? 'bg-red-200' : 'bg-black/8'
+                  }`}>
+                    {isComplete && !isActive ? '✓' : idx + 1}
+                  </span>
+                  <span className="font-medium text-sm hidden sm:inline">{STEP_LABELS[s]}</span>
+                </button>
+                {idx < STEPS.length - 1 && (
+                  <div className={`w-8 h-0.5 mx-1 ${isComplete ? 'bg-primary/50' : 'bg-black/12'}`} />
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">{error}</div>
+        <div className="mb-6 p-4 bg-red-50 text-red-800 rounded shadow-md-1 border border-red-200">{error}</div>
       )}
       {successToast && (
-        <div className="mb-4 p-3 bg-green-100 text-green-800 rounded">
+        <div className="mb-6 p-4 bg-green-50 text-green-800 rounded shadow-md-1 border border-green-200">
           Profile saved and activated successfully.
         </div>
       )}
@@ -201,6 +231,7 @@ export function ETLFlow() {
         <Joins
           sessionData={sessionData}
           profile={profile}
+          onUpdate={(joins) => setProfile((p) => (p ? { ...p, joins } : null))}
           onNext={() => setStep('filtering')}
           onSkip={() => handleSkip('joins')}
           onSaveProfile={api.profiles.update}

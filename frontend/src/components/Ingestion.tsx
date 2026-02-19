@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
+import { DataTableWithSearch } from './DataTableWithSearch'
 
 interface SessionDataShape {
   quote?: { headers: string[]; rows: Record<string, unknown>[] }
@@ -14,19 +15,33 @@ interface IngestionProps {
   canProceed: boolean
 }
 
+interface SchemaField {
+  name: string
+  type: string
+  required: boolean
+  description?: string
+}
+
 const OBJECT_SCHEMA_KEYS: Record<string, number[]> = {
   quote: [0],
   load: [1],
   driver_vehicle: [2, 3],
 }
 
+const OBJECT_LABELS: Record<string, string> = {
+  quote: 'Quote',
+  load: 'Load',
+  driver_vehicle: 'Driver+Vehicle',
+}
+
 export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: IngestionProps) {
   const [generating, setGenerating] = useState<'all' | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
-  const [schema, setSchema] = useState<{ entities: { name: string; fields: { name: string; required: boolean }[] }[] } | null>(null)
+  const [schema, setSchema] = useState<{ entities: { name: string; fields: SchemaField[] }[] } | null>(null)
+  const [activeSheet, setActiveSheet] = useState<'quote' | 'load' | 'driver_vehicle'>('quote')
 
   useEffect(() => {
-    api.schema.get().then(setSchema).catch(() => setSchema(null))
+    api.schema.get().then((r) => setSchema(r as { entities: { name: string; fields: SchemaField[] }[] })).catch(() => setSchema(null))
   }, [])
 
   const handleGenerateAll = async () => {
@@ -35,10 +50,8 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
     try {
       const loadRes = await api.ingest.generate('load')
       state = { ...state, load: { headers: loadRes.headers, rows: loadRes.rows, loadIds: loadRes.loadIds } }
-
       const quoteRes = await api.ingest.generate('quote', { loadIds: loadRes.loadIds })
       state = { ...state, quote: { headers: quoteRes.headers, rows: quoteRes.rows } }
-
       const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
       state = {
         ...state,
@@ -67,113 +80,121 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
     }
   }
 
-  const objects = [
-    { key: 'quote' as const, label: 'Quote' },
-    { key: 'load' as const, label: 'Load' },
-    { key: 'driver_vehicle' as const, label: 'Driver+Vehicle' },
-  ]
-
-  const getFieldsForObject = (key: string) => {
+  const getFieldsForObject = (key: string): SchemaField[] => {
     if (!schema?.entities) return []
     const indices = OBJECT_SCHEMA_KEYS[key]
     if (!indices) return []
-    const fields: { name: string; required: boolean }[] = []
+    const fields: SchemaField[] = []
     for (const i of indices) {
       const ent = schema.entities[i]
-      if (ent?.fields) fields.push(...ent.fields.map((f) => ({ name: f.name, required: f.required })))
+      if (ent?.fields) fields.push(...ent.fields)
     }
-    return fields.slice(0, 12)
+    return fields
   }
+
+  const objects: { key: 'quote' | 'load' | 'driver_vehicle'; label: string }[] = [
+    { key: 'quote', label: 'Quote' },
+    { key: 'load', label: 'Load' },
+    { key: 'driver_vehicle', label: 'Driver+Vehicle' },
+  ]
+
+  const activeData = sessionData[activeSheet]?.rows || []
+  const hasAnyData = objects.some((o) => (sessionData[o.key]?.rows?.length ?? 0) > 0)
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-medium">Ingestion</h2>
-      <p className="text-slate-600">Upload CSV/Excel or generate dirty data for each object.</p>
+      <h2 className="text-xl font-medium text-[rgba(0,0,0,0.87)]">Ingestion</h2>
+      <p className="text-[rgba(0,0,0,0.6)]">Upload CSV/Excel or generate dirty data for each object.</p>
 
-      <div className="flex flex-wrap gap-4 items-start mb-6">
+      <div className="flex flex-wrap gap-4 items-start">
         <button
           onClick={handleGenerateAll}
           disabled={!!generating}
-          className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50 font-medium"
+          className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50 uppercase text-sm tracking-wide"
         >
           {generating ? 'Generating...' : 'Generate dirty data'}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {objects.map(({ key, label }) => {
           const data = sessionData[key]
           const count = data?.rows?.length ?? 0
-          const cols = data?.rows?.[0] ? Object.keys(data.rows[0]) : []
           return (
-            <div key={key} className="bg-white p-4 rounded shadow">
-              <h3 className="font-medium mb-2">{label}</h3>
-              {schema && (
-                <details className="mb-2">
-                  <summary className="cursor-pointer text-xs text-slate-500">Target fields</summary>
-                  <div className="mt-1 text-xs text-slate-600 space-y-0.5">
-                    {getFieldsForObject(key).map((f) => (
-                      <span key={f.name} className="font-mono mr-1">
-                        {f.name}{f.required ? '*' : ''}
-                      </span>
-                    ))}
-                  </div>
-                </details>
-              )}
-              <label className="inline-block px-3 py-2 border rounded text-sm cursor-pointer mt-2">
-                Upload {label}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) handleUpload(key, f)
-                  }}
-                  disabled={!!uploading}
-                />
-              </label>
-              {count > 0 && <p className="mt-2 text-sm text-slate-600">{count} rows</p>}
-              {data?.rows?.length && cols.length > 0 && (
-                <details className="mt-2" open={count <= 10}>
-                  <summary className="cursor-pointer text-sm">Preview ({Math.min(5, count)} rows)</summary>
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="min-w-full text-xs border">
+            <div key={key} className="bg-white p-6 rounded shadow-md-1">
+              <h3 className="font-medium mb-3 text-[rgba(0,0,0,0.87)]">{label}</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-[rgba(0,0,0,0.6)] mb-2">Target schema fields</p>
+                  <div className="overflow-x-auto max-h-32 border border-black/12 rounded">
+                    <table className="min-w-full text-xs">
                       <thead>
-                        <tr className="bg-slate-100">
-                          {cols.slice(0, 6).map((c) => (
-                            <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
-                          ))}
-                          {cols.length > 6 && <th>…</th>}
+                        <tr className="bg-black/4">
+                          <th className="px-2 py-1 text-left">Field</th>
+                          <th className="px-2 py-1 text-left">Type</th>
+                          <th className="px-2 py-1 text-left">Req</th>
+                          <th className="px-2 py-1 text-left hidden sm:table-cell">Description</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.rows.slice(0, 5).map((row, i) => (
-                          <tr key={i} className="border-t">
-                            {cols.slice(0, 6).map((c) => (
-                              <td key={c} className="px-2 py-1 truncate max-w-[100px]" title={String(row[c] ?? '')}>
-                                {String(row[c] ?? '')}
-                              </td>
-                            ))}
-                            {cols.length > 6 && <td>…</td>}
+                        {getFieldsForObject(key).slice(0, 8).map((f) => (
+                          <tr key={f.name} className="border-t">
+                            <td className="px-2 py-1 font-mono">{f.name}{f.required ? '*' : ''}</td>
+                            <td className="px-2 py-1">{f.type}</td>
+                            <td className="px-2 py-1">{f.required ? '✓' : '-'}</td>
+                            <td className="px-2 py-1 text-[rgba(0,0,0,0.6)] hidden sm:table-cell max-w-[120px] truncate" title={f.description}>{f.description || '—'}</td>
                           </tr>
                         ))}
+                        {getFieldsForObject(key).length > 8 && (
+                          <tr className="border-t"><td colSpan={4} className="px-2 py-1 text-[rgba(0,0,0,0.6)]">+{getFieldsForObject(key).length - 8} more</td></tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
-                </details>
-              )}
+                </div>
+                <label className="inline-block px-4 py-2.5 border border-black/20 rounded text-sm cursor-pointer font-medium hover:bg-black/4">
+                  Upload {label}
+                  <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(key, f) }} disabled={!!uploading} />
+                </label>
+                {count > 0 && <p className="text-sm text-[rgba(0,0,0,0.6)]">{count} rows</p>}
+                <button
+                  type="button"
+                  onClick={() => setActiveSheet(key)}
+                  disabled={count === 0}
+                  className={`block w-full text-left px-3 py-2 rounded text-sm ${activeSheet === key ? 'bg-primary/12 text-primary font-medium' : 'hover:bg-black/4'} ${count === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  View preview →
+                </button>
+              </div>
             </div>
           )
         })}
       </div>
 
+      {hasAnyData && (
+        <div className="bg-white p-6 rounded shadow-md-1">
+          <div className="flex gap-2 mb-3">
+            {objects.map(({ key, label }) => {
+              const count = sessionData[key]?.rows?.length ?? 0
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveSheet(key)}
+                  className={`px-4 py-2 rounded text-sm font-medium ${activeSheet === key ? 'bg-primary text-white' : 'bg-black/8 hover:bg-black/12'} ${count === 0 ? 'opacity-50' : ''}`}
+                >
+                  {label} ({count})
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-sm text-[rgba(0,0,0,0.6)] mb-2">Preview: {OBJECT_LABELS[activeSheet]}</p>
+          <DataTableWithSearch data={activeData} maxRows={25} searchPlaceholder="Search in table..." />
+        </div>
+      )}
+
       <div className="flex justify-end">
-        <button
-          onClick={onNext}
-          disabled={!canProceed}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-        >
+        <button onClick={onNext} disabled={!canProceed} className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50">
           Next: Mapping
         </button>
       </div>

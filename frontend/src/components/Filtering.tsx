@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api, type Profile } from '../services/api'
 import { DataModelPopover } from './DataModelPopover'
+import { DataTableWithSearch } from './DataTableWithSearch'
+import { AiWorkingIndicator } from './AiWorkingIndicator'
 
 export interface FilterRule {
   type: 'inclusion' | 'exclusion'
@@ -23,8 +25,9 @@ interface FilteringProps {
 
 export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile }: FilteringProps) {
   const [nlInput, setNlInput] = useState('')
-  const [ruleType, setRuleType] = useState<'inclusion' | 'exclusion'>('exclusion')
   const [interpretError, setInterpretError] = useState('')
+  const [interpreting, setInterpreting] = useState(false)
+  const [examplesExpanded, setExamplesExpanded] = useState(false)
   const [preview, setPreview] = useState<{
     before: number
     after: number
@@ -72,22 +75,24 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
   const addRule = async () => {
     const ruleText = nlInput.trim()
     if (!ruleText) return
-    const prefix = ruleType === 'inclusion' ? 'include ' : 'exclude '
-    const fullRule = ruleText.toLowerCase().startsWith('include ') || ruleText.toLowerCase().startsWith('exclude ')
-      ? ruleText
-      : prefix + ruleText
-    const inferredType = fullRule.toLowerCase().startsWith('include ') ? 'inclusion' : 'exclusion'
     setInterpretError('')
+    setInterpreting(true)
     try {
-      const data = await api.filters.interpret(fullRule, profile.aiMode)
-      const newFilters: FilterRule[] = [
-        ...filters,
-        { type: inferredType, rule: fullRule, structured: data.structured },
-      ]
+      const data = await api.filters.interpret(ruleText, profile.aiMode)
+      const structured = data.structured as { field?: string; op?: string; value?: unknown; type?: 'inclusion' | 'exclusion' }
+      const inferredType =
+        structured?.type ?? (ruleText.toLowerCase().includes('include') || ruleText.toLowerCase().includes('keep') ? 'inclusion' : 'exclusion')
+      const structuredFilter =
+        structured?.field != null && structured?.op != null
+          ? { field: structured.field, op: structured.op, value: structured?.value }
+          : undefined
+      const newFilters: FilterRule[] = [...filters, { type: inferredType, rule: ruleText, structured: structuredFilter }]
       onUpdate(newFilters)
       setNlInput('')
     } catch (e) {
       setInterpretError((e as Error).message)
+    } finally {
+      setInterpreting(false)
     }
   }
 
@@ -100,47 +105,56 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
     await onSaveProfile(profile.id, { filters })
   }
 
-  const SAMPLE = 5
-  const sampleRows = preview?.flatRows?.slice(0, SAMPLE) || []
-  const cols = sampleRows[0] ? Object.keys(sampleRows[0]) : []
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-medium">Filtering</h2>
         <DataModelPopover />
       </div>
-      <p className="text-slate-600">
-        Add inclusion or exclusion rules. Use natural language, e.g. &quot;exclude status = cancelled&quot; or &quot;include status = completed&quot;.
-      </p>
-
-      <div className="bg-white p-4 rounded shadow">
-        <h3 className="font-medium mb-2">Add rule</h3>
-        <div className="flex flex-wrap gap-2 items-center">
-          <select
-            value={ruleType}
-            onChange={(e) => setRuleType(e.target.value as 'inclusion' | 'exclusion')}
-            className="border rounded px-2 py-1 text-sm"
+      <div className="bg-white p-6 rounded shadow-md-1">
+        <h3 className="font-medium mb-3 text-[rgba(0,0,0,0.87)]">Add rule</h3>
+        <p className="text-sm text-[rgba(0,0,0,0.6)] mb-3">
+          Describe your filter in natural language.
+        </p>
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={() => setExamplesExpanded((e) => !e)}
+            className="text-sm text-primary hover:underline font-medium"
           >
-            <option value="inclusion">Include</option>
-            <option value="exclusion">Exclude</option>
-          </select>
-          <input
-            type="text"
+            {examplesExpanded ? '▼ Hide examples' : '▶ View examples'}
+          </button>
+          {examplesExpanded && (
+            <div className="mt-2 p-3 bg-black/[0.03] border border-black/10 rounded text-sm space-y-2">
+              <p className="font-medium text-[rgba(0,0,0,0.87)]">Natural language examples:</p>
+              <ul className="list-disc list-inside text-[rgba(0,0,0,0.7)] space-y-1">
+                <li>Remove all loads with a collection from Leeds</li>
+                <li>exclude cancelled loads</li>
+                <li>include only completed quotes</li>
+                <li>drop rejected status</li>
+                <li>keep only loads where delivery is in London</li>
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 items-start">
+          <textarea
             value={nlInput}
             onChange={(e) => setNlInput(e.target.value)}
-            placeholder="status = cancelled"
-            className="border rounded px-3 py-1.5 text-sm flex-1 min-w-[200px]"
+            placeholder="e.g. Remove all loads with a collection from Leeds"
+            rows={2}
+            className="border border-black/20 rounded px-3 py-2 text-sm flex-1 min-w-[300px] focus:outline-none focus:ring-2 focus:ring-primary resize-y"
           />
-          <button onClick={addRule} disabled={!nlInput.trim()} className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50">
-            Add
+          <button onClick={addRule} disabled={!nlInput.trim() || interpreting} className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50 shrink-0">
+            {interpreting ? 'Interpreting...' : 'Add rule'}
           </button>
+          {interpreting && <AiWorkingIndicator message="AI interpreting filter rule..." />}
         </div>
         {interpretError && <p className="text-red-600 text-sm mt-1">{interpretError}</p>}
       </div>
 
       {filters.length > 0 && (
-        <div className="bg-white p-4 rounded shadow">
+        <div className="bg-white p-6 rounded shadow-md-1">
           <h3 className="font-medium mb-2">Rules ({filters.length})</h3>
           <ul className="space-y-1">
             {filters.map((f, i) => (
@@ -162,7 +176,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         <button
           onClick={runPreview}
           disabled={loading || !sessionData.quote || !sessionData.load || !sessionData.driver_vehicle}
-          className="px-4 py-2 bg-slate-200 rounded text-sm disabled:opacity-50"
+          className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
         >
           {loading ? 'Refreshing...' : 'Preview filters'}
         </button>
@@ -175,14 +189,14 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
       ) : null}
       {preview && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-4 rounded shadow">
+          <div className="bg-white p-6 rounded shadow-md-1">
             <h3 className="font-medium mb-2">Before filters</h3>
             <p className="text-lg font-semibold">{preview.before} rows</p>
           </div>
-          <div className="bg-white p-4 rounded shadow">
+          <div className="bg-white p-6 rounded shadow-md-1">
             <h3 className="font-medium mb-2">After filters</h3>
             <p className="text-lg font-semibold">{preview.after} rows included</p>
-            <p className="text-sm text-slate-600">{preview.before - preview.after} rows excluded</p>
+            <p className="text-sm text-[rgba(0,0,0,0.6)]">{preview.before - preview.after} rows excluded</p>
             {preview.after === 0 && filters.length > 0 && (
               <p className="text-amber-600 text-sm mt-1">Filter drops all rows. Save will be blocked.</p>
             )}
@@ -191,74 +205,34 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
       )}
 
       {preview && preview.excludedByFilter && preview.excludedByFilter.length > 0 && (
-        <details className="bg-white p-4 rounded shadow">
-          <summary className="font-medium cursor-pointer text-red-700">
-            Excluded by filters ({preview.excludedByFilter.length} sample rows)
-          </summary>
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-red-50">
-                  {Object.keys(preview.excludedByFilter[0] || {}).slice(0, 8).map((c) => (
-                    <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.excludedByFilter.slice(0, 10).map((row, i) => (
-                  <tr key={i} className="border-t">
-                    {Object.keys(preview.excludedByFilter![0] || {}).slice(0, 8).map((c) => (
-                      <td key={c} className="px-2 py-1 truncate max-w-[120px]" title={String(row[c] ?? '')}>
-                        {String(row[c] ?? '')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
+        <div className="bg-white p-6 rounded shadow-md-1">
+          <h3 className="font-medium mb-3 text-red-700">Excluded by filters</h3>
+          <DataTableWithSearch
+            data={preview.excludedByFilter}
+            maxRows={50}
+            searchPlaceholder="Search excluded rows..."
+          />
+        </div>
       )}
 
-      {sampleRows.length > 0 && (
-        <details className="bg-white p-4 rounded shadow">
-          <summary className="font-medium cursor-pointer text-green-700">
-            Included (first {SAMPLE} rows)
-          </summary>
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr>
-                  {cols.slice(0, 8).map((c) => (
-                    <th key={c} className="text-left p-1 border-b font-medium">{c}</th>
-                  ))}
-                  {cols.length > 8 && <th>…</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {sampleRows.map((row, i) => (
-                  <tr key={i}>
-                    {cols.slice(0, 8).map((c) => (
-                      <td key={c} className="p-1 border-b truncate max-w-[120px]" title={String(row[c] ?? '')}>
-                        {String(row[c] ?? '')}
-                      </td>
-                    ))}
-                    {cols.length > 8 && <td>…</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
+      {preview && (preview.flatRows?.length ?? 0) > 0 && (
+        <div className="bg-white p-6 rounded shadow-md-1">
+          <h3 className="font-medium mb-3 text-green-700">Included rows</h3>
+          <DataTableWithSearch
+            data={preview.flatRows ?? []}
+            maxRows={50}
+            searchPlaceholder="Search included rows..."
+          />
+        </div>
       )}
 
       <div className="flex justify-end gap-2">
         {onSkip && (
-          <button onClick={onSkip} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">
+          <button onClick={onSkip} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
             Skip
           </button>
         )}
-        <button onClick={saveFilters} className="px-4 py-2 border rounded">
+        <button onClick={saveFilters} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
           Save filters
         </button>
         <button
@@ -266,7 +240,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
             await saveFilters()
             onNext()
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
+          className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark"
         >
           Next: Validation
         </button>

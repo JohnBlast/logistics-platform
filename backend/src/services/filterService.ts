@@ -57,22 +57,26 @@ function matchesRule(row: Record<string, unknown>, rule: FilterRule): boolean {
   const val = row[s.field]
   if (val === undefined) return false
 
+  const valStr = String(val)
+  const filterStr = String(s.value)
+
   switch (s.op) {
     case '=':
-      return String(val) === String(s.value)
+      return valStr.toLowerCase() === filterStr.toLowerCase()
     case '!=':
-      return String(val) !== String(s.value)
+      return valStr.toLowerCase() !== filterStr.toLowerCase()
     case 'contains':
-      return String(val).toLowerCase().includes(String(s.value).toLowerCase())
+      return valStr.toLowerCase().includes(filterStr.toLowerCase())
     case 'in':
-      return Array.isArray(s.value) && s.value.some((v) => String(val) === String(v))
+      return Array.isArray(s.value) && s.value.some((v) => valStr.toLowerCase() === String(v).toLowerCase())
     default:
       return false
   }
 }
 
 /**
- * Mock NL interpretation: parse simple patterns like "exclude status = cancelled"
+ * Mock NL interpretation: parse simple patterns when Claude is unavailable.
+ * Supports: "exclude status = cancelled", "remove cancelled loads", "exclude collection from Leeds"
  */
 export function interpretFilterRule(nl: string): StructuredFilter | null {
   const t = nl.toLowerCase().trim()
@@ -89,5 +93,29 @@ export function interpretFilterRule(nl: string): StructuredFilter | null {
   if (excludeNeMatch) {
     return { field: excludeNeMatch[1].trim(), op: '!=', value: excludeNeMatch[2].trim().replace(/^["']|["']$/g, '') }
   }
+
+  // "remove/exclude/drop X" -> exclude status = X (or similar)
+  const removeMatch = t.match(/(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|quotes?)?\s*(?:with\s+)?(?:status\s+)?(\w+)/)
+  if (removeMatch) {
+    const val = removeMatch[1]
+    if (['cancelled', 'rejected', 'completed', 'pending', 'draft'].includes(val)) {
+      return { field: 'status', op: '=', value: val }
+    }
+  }
+
+  // "exclude/remove ... from Leeds" -> collection_city contains Leeds
+  const fromMatch = t.match(/(?:remove|exclude)\s+.+\s+from\s+([a-z0-9\s]+)/i)
+  if (fromMatch) {
+    const city = fromMatch[1].trim()
+    if (city) return { field: 'collection_city', op: 'contains', value: city }
+  }
+
+  // "include only X" -> include status = X
+  const includeOnlyMatch = t.match(/include\s+only\s+(?:completed|pending|cancelled|rejected|draft)/)
+  if (includeOnlyMatch) {
+    const m = t.match(/(completed|pending|cancelled|rejected|draft)/)
+    if (m) return { field: 'status', op: '=', value: m[1] }
+  }
+
   return null
 }

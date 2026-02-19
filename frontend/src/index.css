@@ -3,10 +3,23 @@
 @tailwind utilities;
 
 :root {
-  min-width: 1280px;
+  --md-primary: #1976d2;
+  --md-primary-dark: #1565c0;
+  --md-surface: #ffffff;
+  --md-background: #fafafa;
+  --md-text-primary: rgba(0, 0, 0, 0.87);
+  --md-text-secondary: rgba(0, 0, 0, 0.6);
+  --md-divider: rgba(0, 0, 0, 0.12);
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Roboto', sans-serif;
+  background: var(--md-background);
+  color: var(--md-text-primary);
+}
+
+/* Material-style inputs */
+input, select, textarea {
+  font-family: inherit;
 }

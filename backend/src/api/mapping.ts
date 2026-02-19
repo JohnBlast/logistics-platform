@@ -1,49 +1,64 @@
 import { Router } from 'express'
 import { suggestMappings } from '../services/mappingService.js'
-import { claudeMappingSuggest } from '../services/claudeService.js'
 import {
-  QUOTE_FIELDS,
-  LOAD_FIELDS,
-  DRIVER_FIELDS,
-  VEHICLE_FIELDS,
-} from '../models/schema.js'
+  claudeMappingSuggest,
+  claudeScoreMappingConfidenceBatch,
+  isClaudeAvailable,
+} from '../services/claudeService.js'
+import { getTargetFieldsWithMetadata, getTargetFieldMetadataMap } from '../services/schemaMetadata.js'
+import type { ObjectType } from '../models/schema.js'
 
 export const mappingRouter = Router()
-
-function getTargetFields(objectType: string): string[] {
-  switch (objectType) {
-    case 'quote':
-      return QUOTE_FIELDS.map((f) => f.name)
-    case 'load':
-      return LOAD_FIELDS.map((f) => f.name)
-    case 'driver_vehicle':
-      return [...DRIVER_FIELDS, ...VEHICLE_FIELDS].map((f) => f.name)
-    default:
-      return []
-  }
-}
 
 mappingRouter.post('/suggest', async (req, res) => {
   const { objectType, sourceHeaders, sourceRows, lockedMappings, aiMode } = req.body
   if (!objectType || !sourceHeaders?.length) {
     return res.status(400).json({ error: 'objectType and sourceHeaders required' })
   }
+
+  const rows = Array.isArray(sourceRows) ? sourceRows : []
+  const targetMeta = getTargetFieldsWithMetadata(objectType as ObjectType)
+  const metaMap = getTargetFieldMetadataMap(objectType as ObjectType)
+
   let suggestions: { targetField: string; sourceColumn: string; confidence: number }[]
-  if (aiMode === 'claude') {
-    const targetFields = getTargetFields(objectType)
-    const claudeResult = await claudeMappingSuggest(
+
+  // Mocked mode always uses mock; Claude mode uses Claude when API key is available
+  if (aiMode === 'claude' && isClaudeAvailable()) {
+    const candidates = await claudeMappingSuggest(
       objectType,
       sourceHeaders,
-      targetFields,
+      targetMeta,
+      rows,
       lockedMappings
     )
-    if (claudeResult.length > 0) {
-      suggestions = claudeResult
+    if (candidates.length === 0) {
+      console.warn('[mapping] Claude returned no candidates, falling back to mock')
+      suggestions = suggestMappings(objectType, sourceHeaders, rows, lockedMappings)
     } else {
-      suggestions = suggestMappings(objectType, sourceHeaders, sourceRows || [], lockedMappings)
+      const withValues = candidates.map((c) => ({
+        ...c,
+        sourceValues: rows
+          .map((r) => r[c.sourceColumn])
+          .filter((v) => v != null && v !== '')
+          .slice(0, 8)
+          .map((v) => String(v).slice(0, 80)),
+      }))
+      const confidenceScores = await claudeScoreMappingConfidenceBatch(withValues, metaMap)
+      suggestions = candidates.map((c) => ({
+        targetField: c.targetField,
+        sourceColumn: c.sourceColumn,
+        confidence:
+          confidenceScores[`${c.targetField}:${c.sourceColumn}`] ??
+          (lockedMappings?.[c.targetField] === c.sourceColumn ? 1 : 0.5),
+      }))
+      const locked = lockedMappings || {}
+      suggestions = suggestions.map((s) =>
+        locked[s.targetField] === s.sourceColumn ? { ...s, confidence: 1 } : s
+      )
     }
   } else {
-    suggestions = suggestMappings(objectType, sourceHeaders, sourceRows || [], lockedMappings)
+    suggestions = suggestMappings(objectType, sourceHeaders, rows, lockedMappings)
   }
+
   res.json({ suggestions })
 })

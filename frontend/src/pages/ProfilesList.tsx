@@ -58,95 +58,73 @@ export function ProfilesList() {
     }
   }
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return <div className="text-[rgba(0,0,0,0.6)]">Loading...</div>
+
+  const inputClass = "border border-black/20 rounded px-3 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Configuration Profiles</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-medium text-[rgba(0,0,0,0.87)]">Configuration Profiles</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark transition-colors uppercase text-sm tracking-wide"
         >
           Create
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">{error}</div>
+        <div className="mb-6 p-4 bg-red-50 text-red-800 rounded shadow-md-1 border border-red-200">{error}</div>
       )}
 
       {showCreate && (
-        <div className="mb-6 p-4 bg-white rounded shadow">
-          <h2 className="font-medium mb-2">New Profile</h2>
-          <div className="space-y-2 max-w-md">
+        <div className="mb-8 p-6 bg-white rounded shadow-md-2">
+          <h2 className="font-medium mb-4 text-[rgba(0,0,0,0.87)] text-lg">New Profile</h2>
+          <div className="space-y-4 max-w-md">
             <div>
-              <label className="block text-sm text-slate-600 mb-0.5">Name *</label>
-              <input
-                type="text"
-                placeholder="Profile name"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-              />
+              <label className="block text-sm text-[rgba(0,0,0,0.6)] mb-1">Name *</label>
+              <input type="text" placeholder="Profile name" value={createName} onChange={(e) => setCreateName(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm text-slate-600 mb-0.5">Description</label>
-              <input
-                type="text"
-                placeholder="Optional description"
-                value={createDescription}
-                onChange={(e) => setCreateDescription(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-              />
+              <label className="block text-sm text-[rgba(0,0,0,0.6)] mb-1">Description</label>
+              <input type="text" placeholder="Optional description" value={createDescription} onChange={(e) => setCreateDescription(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm text-slate-600 mb-0.5">Data Model Version</label>
-              <select
-                value={createDataModelVersion}
-                onChange={(e) => setCreateDataModelVersion(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-              >
+              <label className="block text-sm text-[rgba(0,0,0,0.6)] mb-1">Data Model Version</label>
+              <select value={createDataModelVersion} onChange={(e) => setCreateDataModelVersion(e.target.value)} className={inputClass}>
                 <option value="V1">V1</option>
                 <option value="V2">V2</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-600 mb-0.5">AI Mode</label>
-              <select
-                value={createAiMode}
-                onChange={(e) => setCreateAiMode(e.target.value as 'claude' | 'mocked')}
-                className="border rounded px-3 py-2 w-full"
-              >
+              <label className="block text-sm text-[rgba(0,0,0,0.6)] mb-1">AI Mode</label>
+              <select value={createAiMode} onChange={(e) => setCreateAiMode(e.target.value as 'claude' | 'mocked')} className={inputClass}>
                 <option value="mocked">Mocked AI</option>
                 <option value="claude">Claude AI</option>
               </select>
             </div>
           </div>
-          <div className="mt-3 flex gap-2">
-            <button onClick={handleCreate} className="px-4 py-2 bg-blue-600 text-white rounded">
-              Create
-            </button>
-            <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">
-              Cancel
-            </button>
+          <div className="mt-6 flex gap-3">
+            <button onClick={handleCreate} className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark">Create</button>
+            <button onClick={() => setShowCreate(false)} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">Cancel</button>
           </div>
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {profiles.map((p) => (
           <div
             key={p.id}
-            className="flex items-center justify-between p-4 bg-white rounded shadow"
+            className="flex items-center justify-between p-6 bg-white rounded shadow-md-1 hover:shadow-md-2 transition-shadow"
           >
             <div>
-              <span className={`px-2 py-1 text-xs rounded ${p.status === 'active' ? 'bg-green-100' : p.status === 'draft' ? 'bg-amber-100' : 'bg-slate-100'}`}>
+              <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${p.status === 'active' ? 'bg-green-100 text-green-800' : p.status === 'draft' ? 'bg-amber-100 text-amber-800' : 'bg-black/8 text-[rgba(0,0,0,0.6)]'}`}>
                 {p.status}
               </span>
-              <h3 className="font-medium mt-1">{p.name}</h3>
-              <p className="text-sm text-slate-600">{p.description || '—'}</p>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h3 className="font-medium mt-2 text-[rgba(0,0,0,0.87)]">{p.name}</h3>
+              <p className="text-sm text-[rgba(0,0,0,0.6)] mt-0.5">{p.description || '—'}</p>
+              <p className="text-xs text-[rgba(0,0,0,0.38)] mt-1">
                 {p.dataModelVersion} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}
               </p>
             </div>
@@ -154,21 +132,21 @@ export function ProfilesList() {
               {p.status === 'draft' && (
                 <Link
                   to={`/etl/profiles/${p.id}`}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                  className="px-4 py-2 bg-primary text-white rounded text-sm font-medium shadow-md-1 hover:bg-primary-dark"
                 >
                   Edit
                 </Link>
               )}
               <button
                 onClick={() => handleDuplicate(p.id)}
-                className="px-3 py-1 border rounded text-sm"
+                className="px-4 py-2 border border-black/20 rounded text-sm font-medium hover:bg-black/4"
               >
                 Duplicate
               </button>
               {profiles.length > 1 && (
                 <button
                   onClick={() => setDeleteConfirm(p.id)}
-                  className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm"
+                  className="px-4 py-2 text-red-600 border border-red-200 rounded text-sm font-medium hover:bg-red-50"
                 >
                   Delete
                 </button>
@@ -179,23 +157,23 @@ export function ProfilesList() {
       </div>
 
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow-lg">
-            <p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded shadow-md-4 max-w-md">
+            <p className="text-[rgba(0,0,0,0.87)]">
               Delete profile &quot;{profiles.find((p) => p.id === deleteConfirm)?.name ?? 'Unknown'}&quot;? This cannot be undone.
             </p>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded"
-              >
-                Delete
-              </button>
+            <div className="flex gap-3 mt-6 justify-end">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 border rounded"
+                className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4"
               >
                 Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="px-6 py-2.5 bg-red-600 text-white rounded font-medium hover:bg-red-700"
+              >
+                Delete
               </button>
             </div>
           </div>

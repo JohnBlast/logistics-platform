@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { claudeInterpretJoin } from '../services/claudeService.js'
+import { claudeInterpretJoin, isClaudeAvailable } from '../services/claudeService.js'
 
 export const joinsRouter = Router()
 
@@ -25,13 +25,21 @@ joinsRouter.post('/interpret', async (req, res) => {
   if (!rule || typeof rule !== 'string') {
     return res.status(400).json({ error: 'rule (string) required' })
   }
-  let structured: Record<string, unknown> | null = null
   if (aiMode === 'claude') {
-    structured = await claudeInterpretJoin(rule)
+    if (!isClaudeAvailable()) {
+      return res.status(503).json({
+        error: 'Claude AI is selected but ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the backend.',
+      })
+    }
+    const structured = await claudeInterpretJoin(rule)
+    if (!structured) {
+      return res.status(400).json({
+        error: 'Claude could not interpret this. Try rephrasing, e.g. "join quotes to loads on load_id" or "join load to driver and vehicle on vehicle_id or driver_id".',
+      })
+    }
+    return res.json({ structured })
   }
-  if (!structured) {
-    structured = interpretJoinRule(rule)
-  }
+  const structured = interpretJoinRule(rule)
   if (!structured) {
     return res.status(400).json({
       error: 'Could not parse. Try: "join quote to load on load_id" or "join load to driver and vehicle on vehicle_id or driver_id"',

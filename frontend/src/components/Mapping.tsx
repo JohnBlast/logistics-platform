@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type Profile } from '../services/api'
 import { DataModelPopover } from './DataModelPopover'
+import { AiWorkingIndicator } from './AiWorkingIndicator'
 
 const REQUIRED_QUOTE = ['quote_id', 'load_id', 'quoted_price', 'status', 'created_at', 'updated_at']
 const REQUIRED_LOAD = ['load_id', 'status', 'load_poster_name', 'created_at', 'updated_at']
@@ -39,6 +40,8 @@ interface MappingProps {
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
 }
 
+const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
+
 export function Mapping({
   sessionData,
   profile,
@@ -50,6 +53,22 @@ export function Mapping({
   const [suggestions, setSuggestions] = useState<Record<string, { targetField: string; sourceColumn: string; confidence: number }[]>>({})
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [schema, setSchema] = useState<{ entities: { fields: { name: string; description?: string }[] }[] } | null>(null)
+
+  useEffect(() => {
+    api.schema.get().then((r) => setSchema(r as { entities: { fields: { name: string; description?: string }[] }[] })).catch(() => setSchema(null))
+  }, [])
+
+  const getFieldDesc = (objectType: string, fieldName: string): string => {
+    if (!schema?.entities) return ''
+    const indices = SCHEMA_KEYS[objectType] || []
+    for (const i of indices) {
+      const f = schema.entities[i]?.fields?.find((x) => x.name === fieldName)
+      if (f?.description) return f.description
+    }
+    return ''
+  }
   const mappings = profile.mappings || {}
   const lockedMappings = profile.lockedMappings || {}
   const quoteMappings = mappings.quote || {}
@@ -58,6 +77,7 @@ export function Mapping({
 
   const runSuggest = async () => {
     setLoading(true)
+    setSuggestError(null)
     try {
       const getLocked = (key: string) => lockedMappings[key] || {}
       const aiMode = profile.aiMode
@@ -73,6 +93,8 @@ export function Mapping({
         const r = await api.mapping.suggest('driver_vehicle', sessionData.driver_vehicle.headers, sessionData.driver_vehicle.rows, getLocked('driver_vehicle'), aiMode)
         setSuggestions((s) => ({ ...s, driver_vehicle: r.suggestions }))
       }
+    } catch (e) {
+      setSuggestError((e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -138,23 +160,34 @@ export function Mapping({
   const totalFields = REQUIRED_QUOTE.length + REQUIRED_LOAD.length + REQUIRED_DV.length
   const mappedCount = countMapped(quoteMappings, REQUIRED_QUOTE) + countMapped(loadMappings, REQUIRED_LOAD) + countMapped(dvMappings, REQUIRED_DV)
 
+  const inputClass = "border border-black/20 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+  const LOW_CONFIDENCE_THRESHOLD = 0.6
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <h2 className="text-lg font-medium">Mapping</h2>
+        <h2 className="text-xl font-medium text-[rgba(0,0,0,0.87)]">Mapping</h2>
         <DataModelPopover />
       </div>
-      <p className="text-slate-600">Map source columns to target fields. Required fields must be mapped.</p>
-      <p className="text-sm text-slate-500">{mappedCount}/{totalFields} fields mapped</p>
+      <p className="text-[rgba(0,0,0,0.6)]">Map source columns to target fields. Required fields must be mapped.</p>
+      <p className="text-sm text-[rgba(0,0,0,0.6)]">{mappedCount}/{totalFields} fields mapped</p>
 
-      <div className="flex gap-2">
-        <button
-          onClick={runSuggest}
-          disabled={loading}
-          className="px-4 py-2 bg-slate-200 rounded text-sm disabled:opacity-50"
-        >
-          {loading ? 'Suggesting...' : 'Suggest mapping'}
-        </button>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            onClick={runSuggest}
+            disabled={loading}
+            className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
+          >
+            {loading ? 'Suggesting...' : 'Suggest mapping'}
+          </button>
+          {loading && <AiWorkingIndicator message="AI suggesting mappings..." />}
+        </div>
+        {suggestError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+            {suggestError}
+          </div>
+        )}
       </div>
 
       {dataMap.map(({ key, label, required, headers, mappings: m }) => {
@@ -168,10 +201,15 @@ export function Mapping({
           })
           .filter(Boolean) as { field: string; sourceColumn: string }[]
 
+        const aiAppliedCount = required.filter((f) => {
+          const s = sugs.find((x) => x.targetField === f)
+          return s && m[f] === s.sourceColumn
+        }).length
+        const manualCount = countMapped(m, required) - aiAppliedCount
         const isCollapsed = collapsed[key]
 
         return (
-          <div key={key} className="bg-white p-4 rounded shadow">
+          <div key={key} className="bg-white p-6 rounded shadow-md-1">
             <button
               type="button"
               onClick={() => setCollapsed((c) => ({ ...c, [key]: !c[key] }))}
@@ -179,20 +217,25 @@ export function Mapping({
             >
               <span>{isCollapsed ? '▶' : '▼'}</span>
               {label}
-              <span className="text-slate-500 text-sm font-normal">
+              <span className="text-[rgba(0,0,0,0.6)] text-sm font-normal">
                 ({countMapped(m, required)}/{required.length} mapped)
               </span>
+              {!isCollapsed && (aiAppliedCount > 0 || manualCount > 0) && (
+                <span className="text-xs font-normal text-[rgba(0,0,0,0.5)] ml-2">
+                  ({aiAppliedCount} AI applied, {manualCount} manual)
+                </span>
+              )}
             </button>
             {!isCollapsed && (
             <>
             {errorSuggestions.length > 0 && (
-              <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
                 {errorSuggestions.map(({ field, sourceColumn }) => (
                   <div key={field} className="flex items-center gap-2">
                     <span>Map &quot;{sourceColumn}&quot; → {field}</span>
                     <button
                       onClick={() => applySuggestion(key, field, sourceColumn)}
-                      className="text-blue-600 hover:underline font-medium"
+                      className="text-primary hover:underline font-medium"
                     >
                       Apply
                     </button>
@@ -202,47 +245,102 @@ export function Mapping({
             )}
             <button
               onClick={() => applySuggestions(key)}
-              className="mb-2 text-sm text-blue-600 hover:underline"
+              className="mb-3 text-sm text-primary hover:underline font-medium"
             >
               Apply suggested
             </button>
-            <div className="space-y-2">
+            <div className="space-y-3 border-t border-black/12 pt-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-2 text-xs font-medium text-[rgba(0,0,0,0.6)] uppercase tracking-wide">
+                <span className="bg-primary/8 text-primary px-2 py-1 rounded">Data model (target)</span>
+                <span></span>
+                <span className="bg-green-50 text-green-800 px-2 py-1 rounded">Your uploaded data (source)</span>
+              </div>
               {required.map((field) => {
                 const sug = sugs.find((s) => s.targetField === field)
-                const conf = sug && m[field] === sug.sourceColumn ? sug.confidence : null
+                const conf = sug ? sug.confidence : null
+                const isAiApplied = sug && m[field] === sug.sourceColumn
+                const isManualApplied = m[field] && (!sug || m[field] !== sug.sourceColumn)
+                const hasUnappliedSuggestion = sug && !m[field]
+                const isLowConfidence = conf != null && conf < LOW_CONFIDENCE_THRESHOLD
+                const desc = getFieldDesc(key, field)
                 let opts = headers || []
                 if (m[field] && !opts.includes(m[field])) opts = [m[field], ...opts]
                 return (
-                  <div key={field} className="flex items-center gap-2 flex-wrap">
-                    <span className="w-52 text-sm">
-                      <span className="text-slate-700 font-medium">{fieldLabel(field)}</span>
-                      <span className="text-slate-500 ml-1">*</span>
-                    </span>
+                  <div
+                    key={field}
+                    className={`grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-2 items-center border-b border-black/6 pb-2 pt-1 ${
+                      hasUnappliedSuggestion ? 'bg-primary/5 -mx-2 px-3 py-2 rounded-lg border-l-4 border-l-primary ml-0' : ''
+                    } ${isAiApplied ? 'bg-green-50/80 -mx-2 px-3 py-2 rounded-lg border-l-4 border-l-green-500 ml-0' : ''}`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[rgba(0,0,0,0.87)] font-medium">{fieldLabel(field)}</span>
+                        <span className="text-red-500">*</span>
+                        {isAiApplied && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded border border-green-300">
+                            AI applied
+                          </span>
+                        )}
+                        {isManualApplied && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 rounded border border-slate-200">
+                            Manual
+                          </span>
+                        )}
+                        {hasUnappliedSuggestion && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-primary/15 text-primary rounded border border-primary/30">
+                            AI suggested
+                          </span>
+                        )}
+                      </div>
+                      {desc && <p className="text-xs text-[rgba(0,0,0,0.6)] mt-0.5">{desc}</p>}
+                      {hasUnappliedSuggestion && (
+                        <p className="text-sm font-medium text-primary mt-1">
+                          Suggested: {sug!.sourceColumn}
+                          {conf != null && ` (${Math.round(conf * 100)}% confidence)`}
+                          {isLowConfidence && ' — review recommended'}
+                        </p>
+                      )}
+                      {isAiApplied && conf != null && (
+                        <p className="text-xs text-green-700 mt-0.5">
+                          Accepted suggestion: {sug!.sourceColumn} ({Math.round(conf * 100)}%)
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[rgba(0,0,0,0.38)]">→</span>
+                    <div className="flex items-center gap-2">
                     <select
                       value={m[field] || ''}
                       onChange={(e) => setMapping(key, field, e.target.value)}
-                      className="border rounded px-2 py-1 text-sm"
+                      className={inputClass}
                     >
                       <option value="">—</option>
                       {opts.map((h) => (
-                        <option key={h} value={h}>{h}</option>
+                        <option key={h} value={h} className={hasUnappliedSuggestion && sug?.sourceColumn === h ? 'font-semibold' : ''}>
+                          {h}
+                          {hasUnappliedSuggestion && sug?.sourceColumn === h && conf != null ? ` ✓ ${Math.round(conf * 100)}%` : ''}
+                        </option>
                       ))}
                     </select>
-                    {conf != null && (
-                      <span className="text-xs text-slate-500" title="Suggestion confidence">
+                    {conf != null && isAiApplied && (
+                      <span
+                        className={`text-xs ${isLowConfidence ? 'text-amber-600 font-medium' : 'text-[rgba(0,0,0,0.6)]'}`}
+                        title={isLowConfidence ? 'Low confidence — review this mapping' : 'Suggestion confidence'}
+                      >
                         {Math.round(conf * 100)}%
+                        {isLowConfidence && ' ⚠'}
                       </span>
                     )}
                     {m[field] && (
                       <button
                         type="button"
                         onClick={() => toggleLock(key, field)}
-                        className={`p-1 rounded ${locked[field] ? 'text-amber-600 bg-amber-100' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`p-1 rounded ${locked[field] ? 'text-amber-600 bg-amber-100' : 'text-[rgba(0,0,0,0.38)] hover:text-[rgba(0,0,0,0.6)]'}`}
                         title={locked[field] ? 'Unlock' : 'Lock mapping'}
                       >
                         {locked[field] ? '🔒' : '🔓'}
                       </button>
                     )}
+                    </div>
                   </div>
                 )
               })}
@@ -253,8 +351,8 @@ export function Mapping({
         )
       })}
 
-      <div className="flex justify-end gap-2">
-        <button onClick={saveMappings} className="px-4 py-2 border rounded">
+      <div className="flex justify-end gap-3">
+        <button onClick={saveMappings} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
           Save mappings
         </button>
         <button
@@ -263,7 +361,7 @@ export function Mapping({
             onNext()
           }}
           disabled={!allRequiredMet}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50"
         >
           Next: Enum Mapping
         </button>

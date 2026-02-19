@@ -13,8 +13,10 @@ export interface ValidationSummary {
   filterFieldWarnings: string[]
   flatRows: Record<string, unknown>[]
   excludedByFilter?: Record<string, unknown>[]
+  excludedByFilterCount?: number
   cellsWithWarnings?: number
   nullOrErrorFields?: string[]
+  nullOrEmptyCells?: number
   joinSteps?: { name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
 }
 
@@ -79,6 +81,7 @@ export function runValidation(
 
   let filterFieldWarnings: string[] = []
   let excludedByFilter: Record<string, unknown>[] = []
+  let excludedByFilterCount = 0
   if (!options?.joinOnly && filtersToUse.length > 0) {
     const flatBeforeFilters = [...flat]
     const flatCols = flat.length > 0 ? Object.keys(flat[0]) : []
@@ -94,17 +97,28 @@ export function runValidation(
       flat = applyFilters(flat, filtersToUse)
     }
     const includedSet = new Set(flat.map((r) => JSON.stringify(r)))
-    excludedByFilter = flatBeforeFilters.filter((r) => !includedSet.has(JSON.stringify(r))).slice(0, 20)
+    excludedByFilter = flatBeforeFilters.filter((r) => !includedSet.has(JSON.stringify(r)))
+    excludedByFilterCount = excludedByFilter.length
+    excludedByFilter = excludedByFilter.slice(0, 100)
   }
 
   let cellsWithWarnings = 0
   const nullOrErrorFields = new Set<string>()
-  if (flat.length > 0 && fieldsWithWarnings.length > 0) {
+  let nullOrEmptyCells = 0
+  if (flat.length > 0) {
+    const cols = Object.keys(flat[0])
     for (const row of flat) {
-      for (const col of fieldsWithWarnings) {
+      for (const col of cols) {
         if (row[col] == null || row[col] === '') {
-          cellsWithWarnings++
+          nullOrEmptyCells++
           nullOrErrorFields.add(col)
+        }
+      }
+    }
+    if (fieldsWithWarnings.length > 0) {
+      for (const row of flat) {
+        for (const col of fieldsWithWarnings) {
+          if (row[col] == null || row[col] === '') cellsWithWarnings++
         }
       }
     }
@@ -118,8 +132,10 @@ export function runValidation(
     filterFieldWarnings,
     flatRows: flat,
     excludedByFilter: excludedByFilter.length > 0 ? excludedByFilter : undefined,
+    excludedByFilterCount,
     cellsWithWarnings: cellsWithWarnings > 0 ? cellsWithWarnings : undefined,
     nullOrErrorFields: nullOrErrorFields.size > 0 ? [...nullOrErrorFields] : undefined,
+    nullOrEmptyCells: nullOrEmptyCells > 0 ? nullOrEmptyCells : undefined,
     joinSteps,
   }
 }
