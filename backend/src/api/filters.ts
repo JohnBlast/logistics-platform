@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { interpretFilterRule } from '../services/filterService.js'
-import { claudeInterpretFilter, isClaudeAvailable } from '../services/claudeService.js'
+import { interpretFilterRules } from '../services/filterService.js'
+import { claudeInterpretFilterRules, isClaudeAvailable } from '../services/claudeService.js'
 
 export const filtersRouter = Router()
 
@@ -9,22 +9,25 @@ filtersRouter.post('/interpret', async (req, res) => {
   if (!rule || typeof rule !== 'string') {
     return res.status(400).json({ error: 'rule (string) required' })
   }
-  // Natural language always uses Claude when available (no structured parse forced)
-  if (isClaudeAvailable()) {
-    const structured = await claudeInterpretFilter(rule)
-    if (!structured) {
-      return res.status(400).json({
-        error: 'Could not interpret this. Try rephrasing, e.g. "Remove all loads with a collection from Leeds", "exclude cancelled loads", or "include only completed quotes".',
+  if (aiMode === 'claude') {
+    if (!isClaudeAvailable()) {
+      return res.status(503).json({
+        error: 'Claude AI is selected but ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the backend.',
       })
     }
-    return res.json({ structured })
+    const rules = await claudeInterpretFilterRules(rule)
+    if (!rules?.length) {
+      return res.status(400).json({
+        error: 'Could not interpret this. Try rephrasing, e.g. "Remove all loads with a collection from Leeds", "exclude cancelled loads", "loads with capacity_kg and more than 1000kg".',
+      })
+    }
+    return res.json({ rules })
   }
-  // Fallback: simple pattern parser when no API key
-  const structured = interpretFilterRule(rule)
-  if (!structured) {
-    return res.status(503).json({
-      error: 'Natural language filtering requires ANTHROPIC_API_KEY. Add it to .env and restart, or use a simple format: "exclude status = cancelled"',
+  const rules = interpretFilterRules(rule)
+  if (!rules.length) {
+    return res.status(400).json({
+      error: 'Could not interpret this. Try rephrasing, e.g. "exclude status = cancelled", "loads with capacity_kg and more than 1000kg".',
     })
   }
-  res.json({ structured })
+  res.json({ rules })
 })

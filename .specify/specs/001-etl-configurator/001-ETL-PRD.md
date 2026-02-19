@@ -630,8 +630,6 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | status | enum | ✓ | draft \| sent \| accepted \| rejected \| expired |
 | date_created | TIMESTAMP | ✓ | When quote was created |
 | distance_km | DECIMAL(10,2) | Optional | Distance collection → delivery |
-| collection_town, collection_city, collection_time, collection_date | various | mixed | Collection details |
-| delivery_town, delivery_city, delivery_time, delivery_date | various | mixed | Delivery details |
 | associated_fleet_id | UUID | ✓ | Fleet providing the quote |
 | fleet_quoter_name | VARCHAR | ✓ | Person who created the quote |
 | requested_vehicle_type | enum | ✓ | small_van \| medium_van \| large_van \| luton \| rigid_7_5t \| rigid_18t \| rigid_26t \| articulated |
@@ -647,9 +645,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | distance_km | DECIMAL(10,2) | Optional | Distance |
 | status | enum | ✓ | draft \| posted \| in_transit \| completed \| cancelled |
 | completion_date | DATE | Optional | When completed |
-| accepted_quote_id | UUID | Optional | Quote accepted for this load |
 | load_poster_name | VARCHAR | ✓ | Who posted the load |
-| allocated_fleet_id | UUID | Optional | Fleet assigned |
 | allocated_vehicle_id | UUID | Optional | Vehicle assigned (at least one of vehicle or driver) |
 | driver_id | UUID | Optional | Driver assigned (at least one of vehicle or driver) |
 | number_of_items | INTEGER | Optional | Item count |
@@ -661,7 +657,6 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 |-----------|------|----------|-------------|
 | driver_id | UUID | ✓ | Unique identifier |
 | name | VARCHAR | ✓ | Full name |
-| license_number | VARCHAR | Optional | License ID |
 | fleet_id | UUID | ✓ | Fleet the driver belongs to |
 | email | VARCHAR | Optional | Contact email |
 | phone | VARCHAR | Optional | Contact phone |
@@ -704,11 +699,9 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │    Load     │     │    Load     │     │   Driver    │
 │ load_id(PK) │◄────│ load_id     │     │driver_id(PK)│
-│ accepted_   │     │             │     │  fleet_id   │
-│ quote_id    │     │ allocated_  │────►│ vehicle_id  │──┐
-│ allocated_  │     │ vehicle_id  │     └─────────────┘  │
-│ fleet_id    │     │ driver_id   │────►                 │
-│ driver_id   │────►│             │                       │
+│ allocated_  │     │ allocated_  │────►│ vehicle_id  │──┐
+│ vehicle_id  │     │ vehicle_id  │     └─────────────┘  │
+│ driver_id   │────►│ driver_id   │────►                 │
 └─────────────┘     └─────────────┘                       │
                                                           │
                                                           ▼
@@ -725,7 +718,6 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | From | To | Relationship | Join Key(s) | Cardinality |
 |------|-----|--------------|-------------|-------------|
 | Quote | Load | Quote is for a Load | quote.load_id → load.load_id | N:1 |
-| Load | Quote | Load has accepted Quote | load.accepted_quote_id → quote.quote_id | 1:1 (optional) |
 | Load | Vehicle | Load is allocated to Vehicle | load.allocated_vehicle_id → vehicle.vehicle_id | N:1 (optional) |
 | Load | Driver | Load is assigned to Driver | load.driver_id → driver.driver_id | N:1 (optional) |
 | Vehicle | Driver | Vehicle has assigned Driver | vehicle.driver_id → driver.driver_id | 1:1 (optional) |

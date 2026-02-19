@@ -7,7 +7,7 @@ import { AiWorkingIndicator } from './AiWorkingIndicator'
 export interface FilterRule {
   type: 'inclusion' | 'exclusion'
   rule: string
-  structured?: { field: string; op: string; value: unknown }
+  structured?: { field?: string; op: string; value?: unknown }
 }
 
 interface FilteringProps {
@@ -34,6 +34,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
     flatRows: Record<string, unknown>[]
     excludedByFilter?: Record<string, unknown>[]
     filterFieldWarnings?: string[]
+    ruleEffects?: { ruleIndex: number; rule: string; type: string; before: number; after: number; excluded: number }[]
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const filters = (profile.filters || []) as FilterRule[]
@@ -50,6 +51,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         flatRows: res.flatRows || [],
         excludedByFilter: res.excludedByFilter || [],
         filterFieldWarnings: res.filterFieldWarnings,
+        ruleEffects: res.ruleEffects,
       })
     } catch {
       setPreview(null)
@@ -79,16 +81,30 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
     setInterpreting(true)
     try {
       const data = await api.filters.interpret(ruleText, profile.aiMode)
-      const structured = data.structured as { field?: string; op?: string; value?: unknown; type?: 'inclusion' | 'exclusion' }
-      const inferredType =
-        structured?.type ?? (ruleText.toLowerCase().includes('include') || ruleText.toLowerCase().includes('keep') ? 'inclusion' : 'exclusion')
-      const structuredFilter =
-        structured?.field != null && structured?.op != null
-          ? { field: structured.field, op: structured.op, value: structured?.value }
-          : undefined
-      const newFilters: FilterRule[] = [...filters, { type: inferredType, rule: ruleText, structured: structuredFilter }]
-      onUpdate(newFilters)
-      setNlInput('')
+      const rules = data.rules
+      if (!rules?.length) {
+        setInterpretError('Could not interpret filter rule')
+        return
+      }
+      const newFilters: FilterRule[] = [...filters]
+      for (const r of rules) {
+        const structured = r.structured
+        if (!structured?.op) continue
+        const inferredType =
+          structured.type ??
+          (ruleText.toLowerCase().includes('include') || ruleText.toLowerCase().includes('keep') || ruleText.toLowerCase().includes('want') ? 'inclusion' : 'exclusion')
+        newFilters.push({
+          type: inferredType as 'inclusion' | 'exclusion',
+          rule: rules.length > 1 ? (r.label || ruleText) : ruleText,
+          structured: { field: structured.field, op: structured.op, value: structured.value },
+        })
+      }
+      if (newFilters.length > filters.length) {
+        onUpdate(newFilters)
+        setNlInput('')
+      } else {
+        setInterpretError('Could not interpret filter rule')
+      }
     } catch (e) {
       setInterpretError((e as Error).message)
     } finally {
@@ -130,9 +146,17 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
               <ul className="list-disc list-inside text-[rgba(0,0,0,0.7)] space-y-1">
                 <li>Remove all loads with a collection from Leeds</li>
                 <li>exclude cancelled loads</li>
-                <li>include only completed quotes</li>
-                <li>drop rejected status</li>
-                <li>keep only loads where delivery is in London</li>
+                <li>I only want to see rows with less than 500 on capacity_kg</li>
+                <li>remove loads that don&apos;t have capacity_kg</li>
+                <li>remove loads that are small vans</li>
+                <li>exclude rows where quoted_price is over 2000</li>
+                <li>include loads that have email</li>
+                <li>I only want to see Luton and large_van vehicle types</li>
+                <li>Remove any row with a null value</li>
+                <li><strong>Loads with capacity_kg and with more than 1000kg</strong> (compound)</li>
+                <li><strong>remove London loads</strong> (exclude rows with London in any location)</li>
+                <li>Show only loads with quoted_price and over £500</li>
+                <li>include loads from Manchester</li>
               </ul>
             </div>
           )}
@@ -156,18 +180,30 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
       {filters.length > 0 && (
         <div className="bg-white p-6 rounded shadow-md-1">
           <h3 className="font-medium mb-2">Rules ({filters.length})</h3>
-          <ul className="space-y-1">
-            {filters.map((f, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                <span className={`px-2 py-0.5 rounded ${f.type === 'inclusion' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                  {f.type}
-                </span>
-                <span>{f.rule}</span>
-                <button onClick={() => removeRule(i)} className="text-red-600 hover:underline ml-auto">
-                  Remove
-                </button>
-              </li>
-            ))}
+          <p className="text-xs text-[rgba(0,0,0,0.6)] mb-2">
+            Inclusion rules are AND&apos;d (rows must match all). Exclusion rules remove matching rows.
+          </p>
+          <ul className="space-y-2">
+            {filters.map((f, i) => {
+              const effect = preview?.ruleEffects?.find((e) => e.ruleIndex === i)
+              return (
+                <li key={i} className="flex items-center gap-2 text-sm flex-wrap">
+                  <span className={`px-2 py-0.5 rounded shrink-0 ${f.type === 'inclusion' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {f.type}
+                  </span>
+                  <span className="min-w-0">{f.rule}</span>
+                  {effect != null && (
+                    <span className="text-xs text-[rgba(0,0,0,0.6)] shrink-0">
+                      {effect.before} → {effect.after} rows
+                      {effect.excluded > 0 && ` (−${effect.excluded})`}
+                    </span>
+                  )}
+                  <button onClick={() => removeRule(i)} className="text-red-600 hover:underline ml-auto shrink-0">
+                    Remove
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

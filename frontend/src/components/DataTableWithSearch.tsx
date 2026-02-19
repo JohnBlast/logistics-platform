@@ -10,7 +10,7 @@ interface DataTableWithSearchProps {
 
 export function DataTableWithSearch({ data, maxRows = 50, searchPlaceholder = 'Search...', warningFields }: DataTableWithSearchProps) {
   const [search, setSearch] = useState('')
-  const cols = data[0] ? Object.keys(data[0]) : []
+  const cols = [...new Set(data.flatMap((r) => Object.keys(r)))].sort()
   const filtered = useMemo(() => {
     if (!search.trim()) return data
     const q = search.toLowerCase()

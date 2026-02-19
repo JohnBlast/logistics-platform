@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
 import { DataTableWithSearch } from './DataTableWithSearch'
+import { DataModelPopover } from './DataModelPopover'
 
 interface SessionDataShape {
   quote?: { headers: string[]; rows: Record<string, unknown>[] }
@@ -13,19 +14,7 @@ interface IngestionProps {
   onUpdate: (data: SessionDataShape) => void
   onNext: () => void
   canProceed: boolean
-}
-
-interface SchemaField {
-  name: string
-  type: string
-  required: boolean
-  description?: string
-}
-
-const OBJECT_SCHEMA_KEYS: Record<string, number[]> = {
-  quote: [0],
-  load: [1],
-  driver_vehicle: [2, 3],
+  aiMode?: 'claude' | 'mocked'
 }
 
 const OBJECT_LABELS: Record<string, string> = {
@@ -34,15 +23,12 @@ const OBJECT_LABELS: Record<string, string> = {
   driver_vehicle: 'Driver+Vehicle',
 }
 
-export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: IngestionProps) {
+const OBJECT_ORDER: ('quote' | 'load' | 'driver_vehicle')[] = ['load', 'quote', 'driver_vehicle']
+
+export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }: IngestionProps) {
   const [generating, setGenerating] = useState<'all' | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
-  const [schema, setSchema] = useState<{ entities: { name: string; fields: SchemaField[] }[] } | null>(null)
   const [activeSheet, setActiveSheet] = useState<'quote' | 'load' | 'driver_vehicle'>('quote')
-
-  useEffect(() => {
-    api.schema.get().then((r) => setSchema(r as { entities: { name: string; fields: SchemaField[] }[] })).catch(() => setSchema(null))
-  }, [])
 
   const handleGenerateAll = async () => {
     setGenerating('all')
@@ -80,108 +66,84 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed }: Ingesti
     }
   }
 
-  const getFieldsForObject = (key: string): SchemaField[] => {
-    if (!schema?.entities) return []
-    const indices = OBJECT_SCHEMA_KEYS[key]
-    if (!indices) return []
-    const fields: SchemaField[] = []
-    for (const i of indices) {
-      const ent = schema.entities[i]
-      if (ent?.fields) fields.push(...ent.fields)
-    }
-    return fields
-  }
-
-  const objects: { key: 'quote' | 'load' | 'driver_vehicle'; label: string }[] = [
-    { key: 'quote', label: 'Quote' },
-    { key: 'load', label: 'Load' },
-    { key: 'driver_vehicle', label: 'Driver+Vehicle' },
-  ]
-
   const activeData = sessionData[activeSheet]?.rows || []
-  const hasAnyData = objects.some((o) => (sessionData[o.key]?.rows?.length ?? 0) > 0)
+  const hasAnyData = OBJECT_ORDER.some((k) => (sessionData[k]?.rows?.length ?? 0) > 0)
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-medium text-[rgba(0,0,0,0.87)]">Ingestion</h2>
-      <p className="text-[rgba(0,0,0,0.6)]">Upload CSV/Excel or generate dirty data for each object.</p>
+      <p className="text-[rgba(0,0,0,0.6)]">
+        Add data for each object: upload CSV/Excel or generate sample data. You’ll map columns to the target schema in the next step.
+      </p>
 
-      <div className="flex flex-wrap gap-4 items-start">
+      <div className="flex flex-wrap gap-3 items-center">
         <button
           onClick={handleGenerateAll}
           disabled={!!generating}
-          className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50 uppercase text-sm tracking-wide"
+          className="px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50 text-sm"
         >
-          {generating ? 'Generating...' : 'Generate dirty data'}
+          {generating ? 'Generating...' : 'Generate sample data'}
         </button>
+        <DataModelPopover />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {objects.map(({ key, label }) => {
-          const data = sessionData[key]
-          const count = data?.rows?.length ?? 0
-          return (
-            <div key={key} className="bg-white p-6 rounded shadow-md-1">
-              <h3 className="font-medium mb-3 text-[rgba(0,0,0,0.87)]">{label}</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-[rgba(0,0,0,0.6)] mb-2">Target schema fields</p>
-                  <div className="overflow-x-auto max-h-32 border border-black/12 rounded">
-                    <table className="min-w-full text-xs">
-                      <thead>
-                        <tr className="bg-black/4">
-                          <th className="px-2 py-1 text-left">Field</th>
-                          <th className="px-2 py-1 text-left">Type</th>
-                          <th className="px-2 py-1 text-left">Req</th>
-                          <th className="px-2 py-1 text-left hidden sm:table-cell">Description</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getFieldsForObject(key).slice(0, 8).map((f) => (
-                          <tr key={f.name} className="border-t">
-                            <td className="px-2 py-1 font-mono">{f.name}{f.required ? '*' : ''}</td>
-                            <td className="px-2 py-1">{f.type}</td>
-                            <td className="px-2 py-1">{f.required ? '✓' : '-'}</td>
-                            <td className="px-2 py-1 text-[rgba(0,0,0,0.6)] hidden sm:table-cell max-w-[120px] truncate" title={f.description}>{f.description || '—'}</td>
-                          </tr>
-                        ))}
-                        {getFieldsForObject(key).length > 8 && (
-                          <tr className="border-t"><td colSpan={4} className="px-2 py-1 text-[rgba(0,0,0,0.6)]">+{getFieldsForObject(key).length - 8} more</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <label className="inline-block px-4 py-2.5 border border-black/20 rounded text-sm cursor-pointer font-medium hover:bg-black/4">
-                  Upload {label}
-                  <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(key, f) }} disabled={!!uploading} />
-                </label>
-                {count > 0 && <p className="text-sm text-[rgba(0,0,0,0.6)]">{count} rows</p>}
-                <button
-                  type="button"
-                  onClick={() => setActiveSheet(key)}
-                  disabled={count === 0}
-                  className={`block w-full text-left px-3 py-2 rounded text-sm ${activeSheet === key ? 'bg-primary/12 text-primary font-medium' : 'hover:bg-black/4'} ${count === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  View preview →
-                </button>
-              </div>
-            </div>
-          )
-        })}
+      <div className="bg-white rounded-lg border border-black/12 overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-black/[0.04] text-left text-sm">
+              <th className="px-4 py-3 font-medium">Object</th>
+              <th className="px-4 py-3 font-medium w-24">Status</th>
+              <th className="px-4 py-3 font-medium w-20">Rows</th>
+              <th className="px-4 py-3 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {OBJECT_ORDER.map((key) => {
+              const count = sessionData[key]?.rows?.length ?? 0
+              const ready = count > 0
+              return (
+                <tr key={key} className="border-t border-black/8 hover:bg-black/[0.02]">
+                  <td className="px-4 py-3 font-medium">{OBJECT_LABELS[key]}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 text-sm ${ready ? 'text-green-700' : 'text-[rgba(0,0,0,0.5)]'}`}>
+                      {ready ? '✓' : '○'} {ready ? 'Ready' : 'Needed'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[rgba(0,0,0,0.6)]">{ready ? count : '—'}</td>
+                  <td className="px-4 py-3">
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/20 rounded-md text-sm font-medium cursor-pointer hover:bg-black/4">
+                      <span className={uploading === key ? 'opacity-60' : ''}>Upload</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          if (f) handleUpload(key, f)
+                        }}
+                        disabled={!!uploading}
+                      />
+                    </label>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
       {hasAnyData && (
-        <div className="bg-white p-6 rounded shadow-md-1">
+        <div className="bg-white p-6 rounded-lg border border-black/12">
           <div className="flex gap-2 mb-3">
-            {objects.map(({ key, label }) => {
+            {OBJECT_ORDER.map((key) => {
+              const label = OBJECT_LABELS[key]
               const count = sessionData[key]?.rows?.length ?? 0
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveSheet(key)}
-                  className={`px-4 py-2 rounded text-sm font-medium ${activeSheet === key ? 'bg-primary text-white' : 'bg-black/8 hover:bg-black/12'} ${count === 0 ? 'opacity-50' : ''}`}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeSheet === key ? 'bg-primary text-white' : 'bg-black/8 hover:bg-black/12'} ${count === 0 ? 'opacity-50' : ''}`}
                 >
                   {label} ({count})
                 </button>

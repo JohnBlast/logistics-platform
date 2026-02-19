@@ -9,6 +9,8 @@ import {
   type ObjectType,
 } from '../models/schema.js'
 
+const DEPRECATED_FIELDS = new Set(['license_number'])
+
 export interface TargetFieldMetadata {
   name: string
   type: string
@@ -32,7 +34,7 @@ export function getTargetFieldsWithMetadata(objectType: ObjectType): TargetField
         : objectType === 'load'
           ? LOAD_FIELDS
           : []
-  return fields.map((f) => {
+  return fields.filter((f) => !DEPRECATED_FIELDS.has(f.name)).map((f) => {
     const meta: TargetFieldMetadata = {
       name: f.name,
       type: f.type,

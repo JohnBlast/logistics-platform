@@ -16,16 +16,16 @@ Target schema for the logistics platform ETL.
 
 ### Quote
 - quote_id (UUID, PK), load_id (UUID, FK), quoted_price, status, date_created
-- collection_*, delivery_*, associated_fleet_id, fleet_quoter_name, requested_vehicle_type
+- distance_km, associated_fleet_id, fleet_quoter_name, requested_vehicle_type
 - created_at, updated_at
 
 ### Load
-- load_id (UUID, PK), collection_*, delivery_*, status, accepted_quote_id
-- load_poster_name, allocated_fleet_id, allocated_vehicle_id, driver_id (at least one of vehicle/driver for join)
+- load_id (UUID, PK), collection_*, delivery_*, status
+- load_poster_name, allocated_vehicle_id, driver_id (at least one of vehicle/driver for join)
 - number_of_items, created_at, updated_at
 
 ### Driver
-- driver_id (UUID, PK), name, license_number, fleet_id, email, phone, created_at, updated_at
+- driver_id (UUID, PK), name, fleet_id, email, phone, created_at, updated_at
 
 ### Vehicle
 - vehicle_id (UUID, PK), vehicle_type, registration_number, capacity_kg, driver_id (optional)

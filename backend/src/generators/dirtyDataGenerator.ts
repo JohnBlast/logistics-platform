@@ -108,10 +108,6 @@ export function generateQuotes(loadIds: string[]): Record<string, unknown>[] {
       Status: rand() > 0.12 ? pickDirty(status) : pickDirty(pick(QUOTE_STATUS)),
       'Date Created': rand() > 0.25 ? dirtyDate(createdAt) : createdAt,
       'Distance (km)': rand() > 0.9 ? null : (rand() > 0.15 ? dirtyNumber(dist, true) : (dist.toFixed(2) + ' km')),
-      'Collection Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
-      'Collection City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
-      'Delivery Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
-      'Delivery City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
       'Fleet ID': randomUUID(),
       'Quoter Name': ukName(),
       'Vehicle Type': rand() > 0.1 ? pick(VEHICLE_TYPES) : (pick(VEHICLE_TYPES).toUpperCase() + (rand() > 0.5 ? '' : '  ')),
@@ -131,17 +127,28 @@ export function generateLoads(): { rows: Record<string, unknown>[]; loadIds: str
     const createdAt = randDatePast3Months()
     const status = pick(LOAD_STATUS)
     const dist = rand() * 400
+    const collDate = dateInPastMonths(Math.floor(rand() * 2))
+    const delivDate = dateInPastMonths(Math.floor(rand() * 2))
+    const collDateStr = collDate.toISOString().split('T')[0]
+    const delivDateStr = delivDate.toISOString().split('T')[0]
+    const collIso = collDate.toISOString()
+    const delivIso = delivDate.toISOString()
     rows.push({
       'Load Number': loadId,
       'Collection Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
       'Collection City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
+      'Collection Time': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(collIso) : collIso) : null,
+      'Collection Date': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(collDateStr) : collDateStr) : null,
       'Delivery Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
       'Delivery City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
+      'Delivery Time': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(delivIso) : delivIso) : null,
+      'Delivery Date': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(delivDateStr) : delivDateStr) : null,
       'Distance km': rand() > 0.85 ? null : (rand() > 0.2 ? dirtyNumber(dist, true) : String(Math.round(dist)) + 'km'),
       Status: rand() > 0.1 ? pickDirty(status) : pickDirty(pick(LOAD_STATUS)),
       'Poster Name': ukName(),
       'Vehicle ID': null as string | null,
       'Driver ID': null as string | null,
+      'Number of Items': rand() > 0.2 ? Math.floor(rand() * 50) + 1 : (rand() > 0.5 ? null : Math.floor(rand() * 100)),
       created_at: createdAt,
       updated_at: randDatePast3Months(),
     })
@@ -150,7 +157,8 @@ export function generateLoads(): { rows: Record<string, unknown>[]; loadIds: str
 }
 
 export function generateDriverVehicle(
-  loadRows: Record<string, unknown>[]
+  loadRows: Record<string, unknown>[],
+  linkLoadsToVehicles = true
 ): { driverVehicleRows: Record<string, unknown>[]; updatedLoadRows: Record<string, unknown>[] } {
   const driverVehicles: Record<string, unknown>[] = []
   const vehicleTypes = [...VEHICLE_TYPES]
@@ -161,27 +169,31 @@ export function generateDriverVehicle(
     const createdAt = randDatePast3Months()
     const vt = pick(vehicleTypes)
     const reg = `AB${String(10 + (i % 90)).padStart(2, '0')} ${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i + 7) % 26))} ${i % 10}${(i + 1) % 10}${(i + 2) % 10}`
+    const first = pick(UK_FIRST_NAMES)
     driverVehicles.push({
       'Vehicle ID': vehicleId,
       'Type': rand() > 0.1 ? vt : (rand() > 0.33 ? vt.toUpperCase() : rand() > 0.5 ? vt + '  ' : vt.toLowerCase()),
-      'Registration': rand() > 0.85 ? reg.replace(' ', '-') : rand() > 0.9 ? reg + ' ' : reg, // hyphen vs space, trailing space
+      'Registration': rand() > 0.85 ? reg.replace(' ', '-') : rand() > 0.9 ? reg + ' ' : reg,
       'Capacity kg': rand() > 0.08 ? (rand() > 0.15 ? (Math.round(rand() * 5000)).toString() + ' kg' : (Math.round(rand() * 5000)).toString()) : null,
       'Driver ID': driverId,
       'Driver Name': ukName(),
       'Fleet ID': randomUUID(),
+      'Email': rand() > 0.25 ? `${first.toLowerCase().replace(/\s/g, '')}.${pick(UK_LAST_NAMES).toLowerCase()}@example.com` : (rand() > 0.5 ? null : 'bad-email'),
+      'Phone': rand() > 0.2 ? `07${Math.floor(rand() * 900000000 + 100000000)}` : (rand() > 0.5 ? null : '555-1234'),
       created_at: createdAt,
       updated_at: randDatePast3Months(),
     })
   }
 
   const updatedLoads = loadRows.map((r) => ({ ...r }))
-  const assignCount = Math.min(updatedLoads.length, driverVehicles.length)
-  for (let i = 0; i < assignCount; i++) {
-    const load = updatedLoads[i] as Record<string, unknown>
-    const dv = driverVehicles[i % driverVehicles.length] as Record<string, unknown>
-    load['Vehicle ID'] = dv['Vehicle ID']
-    load['Driver ID'] = dv['Driver ID']
+  if (linkLoadsToVehicles) {
+    const assignCount = Math.min(updatedLoads.length, driverVehicles.length)
+    for (let i = 0; i < assignCount; i++) {
+      const load = updatedLoads[i] as Record<string, unknown>
+      const dv = driverVehicles[i % driverVehicles.length] as Record<string, unknown>
+      load['Vehicle ID'] = dv['Vehicle ID']
+      load['Driver ID'] = dv['Driver ID']
+    }
   }
-
   return { driverVehicleRows: driverVehicles, updatedLoadRows: updatedLoads }
 }

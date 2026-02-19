@@ -11,11 +11,18 @@ const DEFAULT_JOINS = [
 /** Mock NL interpretation. Parses simple patterns like "join quote to load on load_id" */
 function interpretJoinRule(nl: string): Record<string, unknown> | null {
   const t = nl.toLowerCase().trim()
-  if (t.includes('quote') && t.includes('load') && (t.includes('load_id') || t.includes('load id'))) {
+  if (t.includes('quote') && t.includes('load') && (t.includes('load_id') || t.includes('load id') || t.includes('quote.load_id'))) {
     return { ...DEFAULT_JOINS[0] }
   }
-  if (t.includes('load') && (t.includes('driver') || t.includes('vehicle')) && (t.includes('vehicle_id') || t.includes('driver_id'))) {
-    return { ...DEFAULT_JOINS[1] }
+  if (t.includes('load') && (t.includes('driver') || t.includes('vehicle') || t.includes('driver_vehicle'))) {
+    const join = { ...DEFAULT_JOINS[1] }
+    if (t.includes('allocated_vehicle_id') || t.includes('allocated_vehicle') || t.includes('vehicle_id') || t.includes('vehicle id')) {
+      join.leftKey = 'allocated_vehicle_id'
+    }
+    if (t.includes('driver_id') || t.includes('driver id') || t.includes('fallback')) {
+      join.fallbackKey = 'driver_id'
+    }
+    return join
   }
   return null
 }

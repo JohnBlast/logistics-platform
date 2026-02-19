@@ -16,6 +16,11 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
+export interface FilterInterpretedRule {
+  structured: { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion' }
+  label?: string
+}
+
 export interface Profile {
   id: string
   name: string
@@ -100,13 +105,13 @@ export const api = {
   },
   filters: {
     interpret: (rule: string, aiMode?: 'claude' | 'mocked') =>
-      fetchApi<{ structured: { field: string; op: string; value: unknown } }>(
+      fetchApi<{ rules: FilterInterpretedRule[] }>(
         '/api/filters/interpret',
         { method: 'POST', body: JSON.stringify({ rule, aiMode }) }
       ),
   },
   pipeline: {
-    validate: (profileId: string, sessionData: unknown, opts?: { joinOnly?: boolean; filtersOverride?: unknown[] }) =>
+    validate: (profileId: string, sessionData: unknown, opts?: { joinOnly?: boolean; filtersOverride?: unknown[]; joinsOverride?: unknown[] }) =>
       fetchApi<{
         rowsSuccessful: number
         rowsDropped: number
@@ -116,13 +121,14 @@ export const api = {
         flatRows: Record<string, unknown>[]
         excludedByFilter?: Record<string, unknown>[]
         excludedByFilterCount?: number
+        ruleEffects?: { ruleIndex: number; rule: string; type: string; before: number; after: number; excluded: number }[]
         cellsWithWarnings?: number
         nullOrEmptyCells?: number
         nullOrErrorFields?: string[]
         joinSteps?: { name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
       }>(
         '/api/pipeline/validate',
-        { method: 'POST', body: JSON.stringify({ profileId, sessionData, joinOnly: opts?.joinOnly, filtersOverride: opts?.filtersOverride }) }
+        { method: 'POST', body: JSON.stringify({ profileId, sessionData, joinOnly: opts?.joinOnly, filtersOverride: opts?.filtersOverride, joinsOverride: opts?.joinsOverride }) }
       ),
     run: (sessionData: unknown) =>
       fetchApi<{ rowsSuccessful: number; rowsDropped: number; flatRows: Record<string, unknown>[] }>(

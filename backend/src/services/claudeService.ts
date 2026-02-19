@@ -206,14 +206,80 @@ const FLAT_TABLE_FIELDS = `Available columns in the joined flat table:
 - status (load/quote status: draft, posted, in_transit, completed, cancelled, accepted, rejected, etc.)
 - collection_town, collection_city, delivery_town, delivery_city (location strings)
 - load_id, quote_id, vehicle_id, driver_id (IDs)
-- quoted_price, distance_km (numbers)
+- quoted_price, distance_km, capacity_kg (numbers)
 - load_poster_name, name (driver name), registration_number
 - vehicle_type, requested_vehicle_type
+- email, phone, number_of_items
 - created_at, updated_at, collection_date, delivery_date`
+
+export type InterpretedRule = { structured: { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion' }; label: string }
+
+export async function claudeInterpretFilterRules(rule: string): Promise<InterpretedRule[]> {
+  const client = getClient()
+  if (!client) return []
+  const prompt = `You are an ETL filter interpreter. Convert natural language into structured filter(s).
+
+${FLAT_TABLE_FIELDS}
+
+Rule: "${rule}"
+
+Return a JSON ARRAY of rules. For compound conditions (e.g. "with X and more than Y"), return MULTIPLE rules.
+Each rule: { "field": "column_name", "op": "=" | "!=" | "contains" | "in" | "is_null" | "is_not_null" | "<" | "<=" | ">" | ">=", "value": number/string/array (omit for is_null/is_not_null), "type": "inclusion" | "exclusion", "label": "short description" }
+
+COMPOUND RULES - split into multiple rules (field present + numeric):
+- "loads with capacity_kg and with more than 1000kg" → [{"field":"capacity_kg","op":"is_not_null","type":"inclusion","label":"capacity_kg present"}, {"field":"capacity_kg","op":">","value":1000,"type":"inclusion","label":"capacity_kg > 1000"}]
+- "I want to see only loads with capacity_kg and with more than 1000kg" → same as above
+- "loads with capacity_kg and less than 500" → [{"field":"capacity_kg","op":"is_not_null","type":"inclusion","label":"capacity_kg present"}, {"field":"capacity_kg","op":"<","value":500,"type":"inclusion","label":"capacity_kg < 500"}]
+- "with quoted_price and over 2000" / "loads with quoted_price and over £2000" → [{"field":"quoted_price","op":"is_not_null","type":"inclusion","label":"quoted_price present"}, {"field":"quoted_price","op":">","value":2000,"type":"inclusion","label":"quoted_price > 2000"}]
+- "distance_km present and at least 50km" → [{"field":"distance_km","op":"is_not_null","type":"inclusion","label":"distance_km present"}, {"field":"distance_km","op":">=","value":50,"type":"inclusion","label":"distance_km >= 50"}]
+- "between 100 and 500 on capacity_kg" → [{"field":"capacity_kg","op":">=","value":100,"type":"inclusion","label":"capacity_kg >= 100"}, {"field":"capacity_kg","op":"<=","value":500,"type":"inclusion","label":"capacity_kg <= 500"}]
+
+LOCATION EXCLUSION - "remove X loads" = exclude rows with X in ANY location field (return 4 rules: collection_town, collection_city, delivery_town, delivery_city):
+- "remove London loads" → [{"field":"collection_town","op":"contains","value":"London","type":"exclusion","label":"exclude collection_town London"}, {"field":"collection_city","op":"contains","value":"London","type":"exclusion","label":"exclude collection_city London"}, {"field":"delivery_town","op":"contains","value":"London","type":"exclusion","label":"exclude delivery_town London"}, {"field":"delivery_city","op":"contains","value":"London","type":"exclusion","label":"exclude delivery_city London"}]
+- "exclude Manchester loads" → same pattern for Manchester. NEVER use has_any_null or != for "remove X loads".
+
+SINGLE RULES - return one-element array:
+- "exclude cancelled loads" → [{"field":"status","op":"=","value":"cancelled","type":"exclusion","label":"exclude cancelled"}]
+- "loads with collection time" → [{"field":"collection_time","op":"is_not_null","type":"inclusion","label":"collection_time present"}]
+- "I only want Luton and large_van" → [{"field":"requested_vehicle_type","op":"in","value":["luton","large_van"],"type":"inclusion","label":"vehicle type in luton, large_van"}]
+
+CRITICAL: collection_time ≠ collection_date. "collection time" → collection_time.
+CRITICAL: For "has X and more than N (kg)" → two rules: is_not_null + numerical comparison.
+Return ONLY a JSON array, no other text.`
+
+  try {
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const text = msg.content.filter((c) => c.type === 'text').map((c) => (c as { text: string }).text).join('')
+    const arrMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/)
+    const jsonStr = arrMatch ? arrMatch[0] : extractJsonObject(text)
+    if (!jsonStr) {
+      const single = await claudeInterpretFilter(rule)
+      if (single) return [{ structured: single, label: rule }]
+      return []
+    }
+    const parsed = JSON.parse(jsonStr) as { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion'; label?: string }[]
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      const single = await claudeInterpretFilter(rule)
+      if (single) return [{ structured: single, label: rule }]
+      return []
+    }
+    return parsed
+      .filter((p) => p?.op)
+      .filter((p) => p.op === 'has_any_null' || p.op === 'has_no_nulls' || p.field)
+      .map((p) => ({ structured: { field: p.field, op: p.op, value: p.value, type: p.type }, label: p.label || rule }))
+  } catch (err) {
+    console.error('[claude] filter interpret failed:', err instanceof Error ? err.message : String(err))
+    return []
+  }
+}
 
 export async function claudeInterpretFilter(
   rule: string
-): Promise<{ field: string; op: string; value: unknown; type?: 'inclusion' | 'exclusion' } | null> {
+): Promise<{ field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion' } | null> {
   const client = getClient()
   if (!client) return null
   const prompt = `You are an ETL filter interpreter. Convert natural language into a structured filter.
@@ -222,18 +288,51 @@ ${FLAT_TABLE_FIELDS}
 
 Rule: "${rule}"
 
-Return ONLY a JSON object: { "field": "column_name", "op": "=" | "!=" | "contains", "value": "string or number", "type": "inclusion" | "exclusion" }
-- field: must be one of the available columns above
-- op: "=" for exact match, "!=" for not equal, "contains" for partial match (e.g. town/city name)
-- value: the value to match (use exact schema values for status enums)
-- type: "inclusion" = KEEP rows matching (include, only, keep); "exclusion" = REMOVE rows matching (exclude, drop, remove)
+Return ONLY a JSON object: { "field": "column_name" (omit for has_any_null), "op": "=" | "!=" | "contains" | "in" | "is_null" | "is_not_null" | "has_any_null" | "<" | "<=" | ">" | ">=", "value": "string, number, or array for 'in'" (omit for is_null/is_not_null/has_any_null), "type": "inclusion" | "exclusion" }
+- field: must be one of the available columns above; omit for has_any_null
+- op: "=" exact match | "!=" not equal | "contains" partial match | "in" value in array (e.g. vehicle types) | "is_null" blank/null/empty | "is_not_null" non-blank | "has_any_null" ANY null cell | "<" less than | "<=" at most | ">" greater than | ">=" at least (for numbers)
+- value: required for =, !=, contains, <, <=, >, >=; omit for is_null, is_not_null, has_any_null. For <, <=, >, >= use a NUMBER.
+- type: "inclusion" = KEEP rows matching | "exclusion" = REMOVE rows matching
+
+CRITICAL: "remove/exclude blank or null status" means EXCLUDE rows WHERE status IS null/empty → op "is_null", type "exclusion"
+CRITICAL: "Remove any row with a null value" / "exclude rows with nulls" means EXCLUDE rows with ANY null/empty cell → op "has_any_null", type "exclusion" (omit field). ONLY use has_any_null when the rule explicitly mentions null/blank/empty values. NEVER use has_any_null for "remove loads that are X" (vehicle types, statuses, etc).
+CRITICAL: "Remove all loads that are small vans" = EXCLUDE rows where requested_vehicle_type = small_van → {"field":"requested_vehicle_type","op":"=","value":"small_van","type":"exclusion"}. Use exact schema value: small_van not "small vans".
+CRITICAL: "remove London loads" / "exclude London loads" = EXCLUDE rows where London appears in ANY location (collection_town, collection_city, delivery_town, delivery_city). Return 4 rules, one per field, each with op "contains", value "London", type "exclusion". NEVER use has_any_null - that would exclude almost everything.
+CRITICAL: "exclude London collection_town" / "exclude collection_town London" = EXCLUDE rows where that field CONTAINS London → {"field":"collection_town","op":"contains","value":"London","type":"exclusion"}. NEVER use op "!=" - that would exclude non-London rows (wrong!).
+CRITICAL: "remove loads that don't have capacity_kg" / "remove loads without capacity_kg" = EXCLUDE rows where capacity_kg IS null → {"field":"capacity_kg","op":"is_null","type":"exclusion"}. This is FIELD-SPECIFIC is_null for ONE column. NEVER use has_any_null for these - has_any_null means "ANY column is null" and would exclude almost everything.
+CRITICAL: "include loads that have capacity_kg" = INCLUDE rows where capacity_kg IS NOT null → {"field":"capacity_kg","op":"is_not_null","type":"inclusion"}
+CRITICAL: "only want loads with status" / "I only want loads with status" means INCLUDE rows WHERE status IS NOT null/empty → op "is_not_null", type "inclusion"
+CRITICAL: "I only want to see rows with less than 500 on capacity_kg" = INCLUDE rows where capacity_kg < 500 → {"field":"capacity_kg","op":"<","value":500,"type":"inclusion"}
+CRITICAL: "rows with greater than 1000 on quoted_price" = INCLUDE rows where quoted_price > 1000 → {"field":"quoted_price","op":">","value":1000,"type":"inclusion"}
+CRITICAL: "exclude rows where capacity_kg is over 500" = EXCLUDE rows where capacity_kg > 500 → {"field":"capacity_kg","op":">","value":500,"type":"exclusion"}
+CRITICAL: "loads with a collection time" = collection_time is NOT null. Use field "collection_time" NOT "collection_date". They are different fields!
+CRITICAL: "I only want to see Luton and large_van vehicle types" = INCLUDE where requested_vehicle_type IN [luton, large_van] → {"field":"requested_vehicle_type","op":"in","value":["luton","large_van"],"type":"inclusion"}
+CRITICAL: Multiple inclusion rules are AND'd: rows must match ALL inclusion rules.
 
 Examples:
+"Remove all loads that are small vans" -> {"field":"requested_vehicle_type","op":"=","value":"small_van","type":"exclusion"}
 "Remove all loads with a collection from Leeds" -> {"field":"collection_city","op":"contains","value":"Leeds","type":"exclusion"}
+"exclude London collection_town" -> {"field":"collection_town","op":"contains","value":"London","type":"exclusion"}
+"exclude Leeds collection_city" -> {"field":"collection_city","op":"contains","value":"Leeds","type":"exclusion"}
 "exclude cancelled loads" -> {"field":"status","op":"=","value":"cancelled","type":"exclusion"}
 "include only completed loads" -> {"field":"status","op":"=","value":"completed","type":"inclusion"}
-"drop quotes from rejected status" -> {"field":"status","op":"=","value":"rejected","type":"exclusion"}
-"keep only loads where delivery is in London" -> {"field":"delivery_city","op":"=","value":"London","type":"inclusion"}`
+"remove all loads with a blank or null status" -> {"field":"status","op":"is_null","type":"exclusion"}
+"exclude loads where status is null" -> {"field":"status","op":"is_null","type":"exclusion"}
+"I only want loads with status" -> {"field":"status","op":"is_not_null","type":"inclusion"}
+"keep only loads that have a status" -> {"field":"status","op":"is_not_null","type":"inclusion"}
+"keep only loads where delivery is in London" -> {"field":"delivery_city","op":"=","value":"London","type":"inclusion"}
+"Remove any row with a null value" -> {"op":"has_any_null","type":"exclusion"}
+"exclude rows with nulls" -> {"op":"has_any_null","type":"exclusion"}
+"remove loads that don't have capacity_kg" -> {"field":"capacity_kg","op":"is_null","type":"exclusion"}
+"remove loads that doesn't have capacity_kg" -> {"field":"capacity_kg","op":"is_null","type":"exclusion"}
+"remove loads without capacity_kg" -> {"field":"capacity_kg","op":"is_null","type":"exclusion"}
+"include only loads that have capacity_kg" -> {"field":"capacity_kg","op":"is_not_null","type":"inclusion"}
+"keep loads with email" -> {"field":"email","op":"is_not_null","type":"inclusion"}
+"I only want to see rows with less than 500 on capacity_kg" -> {"field":"capacity_kg","op":"<","value":500,"type":"inclusion"}
+"rows with capacity_kg under 500" -> {"field":"capacity_kg","op":"<","value":500,"type":"inclusion"}
+"exclude rows where quoted_price is over 2000" -> {"field":"quoted_price","op":">","value":2000,"type":"exclusion"}
+"I want to only see loads with a collection time" -> {"field":"collection_time","op":"is_not_null","type":"inclusion"}
+"I only want to see Luton and large_van vehicle types" -> {"field":"requested_vehicle_type","op":"in","value":["luton","large_van"],"type":"inclusion"}`
 
   try {
     const msg = await client.messages.create({
@@ -244,8 +343,9 @@ Examples:
     const text = msg.content.filter((c) => c.type === 'text').map((c) => (c as { text: string }).text).join('')
     const jsonStr = extractJsonObject(text)
     if (!jsonStr) return null
-    const parsed = JSON.parse(jsonStr) as { field: string; op: string; value: unknown; type?: 'inclusion' | 'exclusion' }
-    if (!parsed.field || !parsed.op) return null
+    const parsed = JSON.parse(jsonStr) as { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion' }
+    if (!parsed.op) return null
+    if (parsed.op !== 'has_any_null' && parsed.op !== 'has_no_nulls' && !parsed.field) return null
     return parsed
   } catch (err) {
     console.error('[claude] filter interpret failed:', err instanceof Error ? err.message : String(err))
@@ -293,14 +393,19 @@ export async function claudeInterpretJoin(rule: string): Promise<Record<string, 
   if (!client) return null
   const prompt = `Parse this join description into a JSON object.
 
-Our schema: Quote -> Load (on load_id), Load -> Driver+Vehicle (on allocated_vehicle_id or driver_id).
-Possible joins: Quote→Load, Load→Driver+Vehicle.
+Our schema:
+- Quote has load_id → joins to Load.load_id
+- Load has allocated_vehicle_id and driver_id → joins to Driver+Vehicle (vehicle_id, driver_id)
+- "vehicle_id" / "Vehicle ID" / "allocated_vehicle_id" on Load side all mean allocated_vehicle_id
 
 Rule: "${rule}"
 
 Return ONLY a JSON object with: name, leftEntity, rightEntity, leftKey, rightKey. Add fallbackKey for Load->Driver+Vehicle.
-Example for Quote-Load: {"name":"Quote→Load","leftEntity":"quote","rightEntity":"load","leftKey":"load_id","rightKey":"load_id"}
-Example for Load-DriverVehicle: {"name":"Load→Driver+Vehicle","leftEntity":"load","rightEntity":"driver_vehicle","leftKey":"allocated_vehicle_id","rightKey":"vehicle_id","fallbackKey":"driver_id"}`
+Examples:
+Quote-Load: {"name":"Quote→Load","leftEntity":"quote","rightEntity":"load","leftKey":"load_id","rightKey":"load_id"}
+Load-DriverVehicle (primary vehicle, fallback driver): {"name":"Load→Driver+Vehicle","leftEntity":"load","rightEntity":"driver_vehicle","leftKey":"allocated_vehicle_id","rightKey":"vehicle_id","fallbackKey":"driver_id"}
+Load-DriverVehicle (user said "vehicle_id" on load): use leftKey "allocated_vehicle_id" (Load schema field)
+Load-DriverVehicle (user said "vehicle ID" or "Vehicle ID"): use leftKey "allocated_vehicle_id"`
 
   try {
     const msg = await client.messages.create({

@@ -3,9 +3,29 @@ import { api, type Profile } from '../services/api'
 import { DataModelPopover } from './DataModelPopover'
 import { AiWorkingIndicator } from './AiWorkingIndicator'
 
-const REQUIRED_QUOTE = ['quote_id', 'load_id', 'quoted_price', 'status', 'created_at', 'updated_at']
-const REQUIRED_LOAD = ['load_id', 'status', 'load_poster_name', 'created_at', 'updated_at']
-const REQUIRED_DV = ['vehicle_id', 'driver_id', 'vehicle_type', 'registration_number', 'name', 'fleet_id', 'created_at', 'updated_at']
+const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
+
+/** Derive all fields and required fields from schema entities */
+function getFieldsFromSchema(
+  schema: { entities: { fields: { name: string; required?: boolean }[] }[] } | null,
+  objectType: 'quote' | 'load' | 'driver_vehicle'
+): { all: string[]; required: string[] } {
+  if (!schema?.entities) return { all: [], required: [] }
+  const indices = SCHEMA_KEYS[objectType] || []
+  const all: string[] = []
+  const required: string[] = []
+  const seen = new Set<string>()
+  for (const i of indices) {
+    for (const f of schema.entities[i]?.fields || []) {
+      if (!seen.has(f.name)) {
+        seen.add(f.name)
+        all.push(f.name)
+        if (f.required) required.push(f.name)
+      }
+    }
+  }
+  return { all, required }
+}
 
 const FIELD_LABELS: Record<string, string> = {
   quote_id: 'Quote reference',
@@ -22,6 +42,24 @@ const FIELD_LABELS: Record<string, string> = {
   name: 'Driver name',
   fleet_id: 'Fleet ID',
   allocated_vehicle_id: 'Assigned vehicle',
+  date_created: 'Date created',
+  distance_km: 'Distance (km)',
+  associated_fleet_id: 'Fleet ID',
+  fleet_quoter_name: 'Quoter name',
+  requested_vehicle_type: 'Vehicle type requested',
+  collection_town: 'Collection town',
+  collection_city: 'Collection city',
+  collection_time: 'Collection time',
+  collection_date: 'Collection date',
+  delivery_town: 'Delivery town',
+  delivery_city: 'Delivery city',
+  delivery_time: 'Delivery time',
+  delivery_date: 'Delivery date',
+  completion_date: 'Completion date',
+  number_of_items: 'Number of items',
+  email: 'Email',
+  phone: 'Phone',
+  capacity_kg: 'Capacity (kg)',
 }
 function fieldLabel(name: string): string {
   return FIELD_LABELS[name] || name.replace(/_/g, ' ')
@@ -40,8 +78,6 @@ interface MappingProps {
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
 }
 
-const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
-
 export function Mapping({
   sessionData,
   profile,
@@ -54,10 +90,10 @@ export function Mapping({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [suggestError, setSuggestError] = useState<string | null>(null)
-  const [schema, setSchema] = useState<{ entities: { fields: { name: string; description?: string }[] }[] } | null>(null)
+  const [schema, setSchema] = useState<{ entities: { fields: { name: string; description?: string; required?: boolean }[] }[] } | null>(null)
 
   useEffect(() => {
-    api.schema.get().then((r) => setSchema(r as { entities: { fields: { name: string; description?: string }[] }[] })).catch(() => setSchema(null))
+    api.schema.get().then((r) => setSchema(r as { entities: { fields: { name: string; description?: string; required?: boolean }[] }[] })).catch(() => setSchema(null))
   }, [])
 
   const getFieldDesc = (objectType: string, fieldName: string): string => {
@@ -137,31 +173,35 @@ export function Mapping({
     onUpdate(m)
   }
 
+  const quoteFields = getFieldsFromSchema(schema, 'quote')
+  const loadFields = getFieldsFromSchema(schema, 'load')
+  const dvFields = getFieldsFromSchema(schema, 'driver_vehicle')
   const requiredMet = (obj: Record<string, string>, required: string[]) =>
     required.every((r) => obj[r])
-
   const allRequiredMet =
-    requiredMet(quoteMappings, REQUIRED_QUOTE) &&
-    requiredMet(loadMappings, REQUIRED_LOAD) &&
-    requiredMet(dvMappings, REQUIRED_DV)
+    requiredMet(quoteMappings, quoteFields.required) &&
+    requiredMet(loadMappings, loadFields.required) &&
+    requiredMet(dvMappings, dvFields.required)
 
   const saveMappings = async () => {
     await onSaveProfile(profile.id, { mappings, lockedMappings })
   }
 
   const dataMap = [
-    { key: 'quote' as const, label: 'Quote', required: REQUIRED_QUOTE, headers: sessionData.quote?.headers, mappings: quoteMappings },
-    { key: 'load' as const, label: 'Load', required: REQUIRED_LOAD, headers: sessionData.load?.headers, mappings: loadMappings },
-    { key: 'driver_vehicle' as const, label: 'Driver+Vehicle', required: REQUIRED_DV, headers: sessionData.driver_vehicle?.headers, mappings: dvMappings },
+    { key: 'quote' as const, label: 'Quote', allFields: quoteFields.all, required: quoteFields.required, headers: sessionData.quote?.headers, mappings: quoteMappings },
+    { key: 'load' as const, label: 'Load', allFields: loadFields.all, required: loadFields.required, headers: sessionData.load?.headers, mappings: loadMappings },
+    { key: 'driver_vehicle' as const, label: 'Driver+Vehicle', allFields: dvFields.all, required: dvFields.required, headers: sessionData.driver_vehicle?.headers, mappings: dvMappings },
   ]
 
   const countMapped = (m: Record<string, string>, keys: string[]) =>
     keys.filter((k) => m[k]).length
-  const totalFields = REQUIRED_QUOTE.length + REQUIRED_LOAD.length + REQUIRED_DV.length
-  const mappedCount = countMapped(quoteMappings, REQUIRED_QUOTE) + countMapped(loadMappings, REQUIRED_LOAD) + countMapped(dvMappings, REQUIRED_DV)
+  const totalFields = quoteFields.all.length + loadFields.all.length + dvFields.all.length
+  const mappedCount =
+    countMapped(quoteMappings, quoteFields.all) +
+    countMapped(loadMappings, loadFields.all) +
+    countMapped(dvMappings, dvFields.all)
 
   const inputClass = "border border-black/20 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-  const LOW_CONFIDENCE_THRESHOLD = 0.6
 
   return (
     <div className="space-y-6">
@@ -190,7 +230,7 @@ export function Mapping({
         )}
       </div>
 
-      {dataMap.map(({ key, label, required, headers, mappings: m }) => {
+      {dataMap.map(({ key, label, allFields, required, headers, mappings: m }) => {
         const sugs = suggestions[key] || []
         const locked = lockedMappings[key] || {}
         const unmappedRequired = required.filter((r) => !m[r])
@@ -201,11 +241,11 @@ export function Mapping({
           })
           .filter(Boolean) as { field: string; sourceColumn: string }[]
 
-        const aiAppliedCount = required.filter((f) => {
+        const aiAppliedCount = allFields.filter((f) => {
           const s = sugs.find((x) => x.targetField === f)
           return s && m[f] === s.sourceColumn
         }).length
-        const manualCount = countMapped(m, required) - aiAppliedCount
+        const manualCount = countMapped(m, allFields) - aiAppliedCount
         const isCollapsed = collapsed[key]
 
         return (
@@ -218,7 +258,7 @@ export function Mapping({
               <span>{isCollapsed ? '▶' : '▼'}</span>
               {label}
               <span className="text-[rgba(0,0,0,0.6)] text-sm font-normal">
-                ({countMapped(m, required)}/{required.length} mapped)
+                ({countMapped(m, allFields)}/{allFields.length} mapped)
               </span>
               {!isCollapsed && (aiAppliedCount > 0 || manualCount > 0) && (
                 <span className="text-xs font-normal text-[rgba(0,0,0,0.5)] ml-2">
@@ -255,13 +295,10 @@ export function Mapping({
                 <span></span>
                 <span className="bg-green-50 text-green-800 px-2 py-1 rounded">Your uploaded data (source)</span>
               </div>
-              {required.map((field) => {
+              {allFields.map((field) => {
                 const sug = sugs.find((s) => s.targetField === field)
-                const conf = sug ? sug.confidence : null
                 const isAiApplied = sug && m[field] === sug.sourceColumn
                 const isManualApplied = m[field] && (!sug || m[field] !== sug.sourceColumn)
-                const hasUnappliedSuggestion = sug && !m[field]
-                const isLowConfidence = conf != null && conf < LOW_CONFIDENCE_THRESHOLD
                 const desc = getFieldDesc(key, field)
                 let opts = headers || []
                 if (m[field] && !opts.includes(m[field])) opts = [m[field], ...opts]
@@ -269,13 +306,13 @@ export function Mapping({
                   <div
                     key={field}
                     className={`grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-2 items-center border-b border-black/6 pb-2 pt-1 ${
-                      hasUnappliedSuggestion ? 'bg-primary/5 -mx-2 px-3 py-2 rounded-lg border-l-4 border-l-primary ml-0' : ''
-                    } ${isAiApplied ? 'bg-green-50/80 -mx-2 px-3 py-2 rounded-lg border-l-4 border-l-green-500 ml-0' : ''}`}
+                      isAiApplied ? 'bg-green-50/80 -mx-2 px-3 py-2 rounded-lg border-l-4 border-l-green-500 ml-0' : ''
+                    }`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[rgba(0,0,0,0.87)] font-medium">{fieldLabel(field)}</span>
-                        <span className="text-red-500">*</span>
+                        {required.includes(field) && <span className="text-red-500">*</span>}
                         {isAiApplied && (
                           <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded border border-green-300">
                             AI applied
@@ -286,25 +323,8 @@ export function Mapping({
                             Manual
                           </span>
                         )}
-                        {hasUnappliedSuggestion && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-primary/15 text-primary rounded border border-primary/30">
-                            AI suggested
-                          </span>
-                        )}
                       </div>
                       {desc && <p className="text-xs text-[rgba(0,0,0,0.6)] mt-0.5">{desc}</p>}
-                      {hasUnappliedSuggestion && (
-                        <p className="text-sm font-medium text-primary mt-1">
-                          Suggested: {sug!.sourceColumn}
-                          {conf != null && ` (${Math.round(conf * 100)}% confidence)`}
-                          {isLowConfidence && ' — review recommended'}
-                        </p>
-                      )}
-                      {isAiApplied && conf != null && (
-                        <p className="text-xs text-green-700 mt-0.5">
-                          Accepted suggestion: {sug!.sourceColumn} ({Math.round(conf * 100)}%)
-                        </p>
-                      )}
                     </div>
                     <span className="text-[rgba(0,0,0,0.38)]">→</span>
                     <div className="flex items-center gap-2">
@@ -315,21 +335,11 @@ export function Mapping({
                     >
                       <option value="">—</option>
                       {opts.map((h) => (
-                        <option key={h} value={h} className={hasUnappliedSuggestion && sug?.sourceColumn === h ? 'font-semibold' : ''}>
+                        <option key={h} value={h}>
                           {h}
-                          {hasUnappliedSuggestion && sug?.sourceColumn === h && conf != null ? ` ✓ ${Math.round(conf * 100)}%` : ''}
                         </option>
                       ))}
                     </select>
-                    {conf != null && isAiApplied && (
-                      <span
-                        className={`text-xs ${isLowConfidence ? 'text-amber-600 font-medium' : 'text-[rgba(0,0,0,0.6)]'}`}
-                        title={isLowConfidence ? 'Low confidence — review this mapping' : 'Suggestion confidence'}
-                      >
-                        {Math.round(conf * 100)}%
-                        {isLowConfidence && ' ⚠'}
-                      </span>
-                    )}
                     {m[field] && (
                       <button
                         type="button"

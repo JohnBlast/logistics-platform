@@ -44,7 +44,8 @@ ingestRouter.post('/generate', (req, res) => {
 
   if (objectType === 'driver_vehicle') {
     const lr = loadRows && loadRows.length ? loadRows : generateLoads().rows
-    const { driverVehicleRows, updatedLoadRows } = generateDriverVehicle(lr)
+    const linkLoadsToVehicles = req.body.linkLoadsToVehicles !== false
+    const { driverVehicleRows, updatedLoadRows } = generateDriverVehicle(lr, linkLoadsToVehicles)
     return res.json({
       headers: Object.keys(driverVehicleRows[0]),
       rows: driverVehicleRows,

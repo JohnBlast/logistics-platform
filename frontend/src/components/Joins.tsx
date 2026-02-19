@@ -28,6 +28,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
     before: { quote: number; load: number; dv: number }
     after: number
     flatRows: Record<string, unknown>[]
+    joinSteps?: { name: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
   } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -87,7 +88,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
     setLoading(true)
     setPreviewError(null)
     try {
-      const res = await api.pipeline.validate(profile.id, sessionData, { joinOnly: true })
+      const res = await api.pipeline.validate(profile.id, sessionData, { joinOnly: true, joinsOverride: joins })
       setPreview({
         before: {
           quote: sessionData.quote.rows.length,
@@ -96,6 +97,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         },
         after: res.rowsSuccessful,
         flatRows: res.flatRows || [],
+        joinSteps: res.joinSteps,
       })
     } catch (e) {
       setPreview(null)
@@ -129,7 +131,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
       setPreviewError(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runPreview depends on sessionData, profile
-  }, [canPreview, skipPipelineInClaude, profile.id, profile.aiMode, joins.length, sessionData.quote?.rows?.length, sessionData.load?.rows?.length, sessionData.driver_vehicle?.rows?.length])
+  }, [canPreview, skipPipelineInClaude, profile.id, profile.aiMode, JSON.stringify(joins), sessionData.quote?.rows?.length, sessionData.load?.rows?.length, sessionData.driver_vehicle?.rows?.length])
 
   const saveJoins = async () => {
     await onSaveProfile(profile.id, { joins: joins.length ? joins : (profile.aiMode === 'claude' ? [] : DEFAULT_JOINS) })
@@ -178,8 +180,8 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
               <ul className="list-disc list-inside text-[rgba(0,0,0,0.7)] space-y-1">
                 <li>join quotes to loads on load_id</li>
                 <li>join load to driver and vehicle on vehicle_id or driver_id</li>
-                <li>Quote→Load on load_id</li>
                 <li>Load→Driver+Vehicle on allocated_vehicle_id with fallback driver_id</li>
+                <li>connect loads to driver+vehicles using vehicle ID and driver ID as fallback</li>
               </ul>
             </div>
           )}
@@ -212,10 +214,21 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         ) : (
         <ul className="space-y-2 text-sm">
           {joins.map((j, i) => (
-            <li key={i} className="flex gap-2">
+            <li key={i} className="flex items-center gap-2">
               <span className="font-mono bg-black/8 px-2 py-0.5 rounded">{j.name}</span>
               <span className="text-[rgba(0,0,0,0.87)]">{j.leftEntity}.{j.leftKey} → {j.rightEntity}.{j.rightKey}</span>
               {j.fallbackKey && <span className="text-[rgba(0,0,0,0.6)]">(fallback: {j.fallbackKey})</span>}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = joins.filter((_, idx) => idx !== i)
+                  onUpdate(next)
+                }}
+                className="ml-auto text-red-600 hover:text-red-800 hover:underline text-xs font-medium"
+                title="Remove join"
+              >
+                Remove
+              </button>
             </li>
           ))}
         </ul>
@@ -223,18 +236,9 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         <p className="text-[rgba(0,0,0,0.6)] text-xs mt-2">Fixed order per schema. Custom keys can be configured in future.</p>
       </div>
 
-      <div className="flex gap-2 items-center">
-        <button
-          onClick={runPreview}
-          disabled={loading || !canPreview}
-          className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
-        >
-          {loading ? 'Refreshing...' : 'Preview joins'}
-        </button>
-        {!canPreview && (
-          <span className="text-sm text-[rgba(0,0,0,0.6)]">Generate data in Ingestion and complete Mapping first.</span>
-        )}
-      </div>
+      {!canPreview && (
+        <p className="text-sm text-[rgba(0,0,0,0.6)]">Generate data in Ingestion and complete Mapping first.</p>
+      )}
 
       {previewError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
@@ -242,37 +246,64 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         </div>
       )}
       {preview && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-6 rounded shadow-md-1">
-            <h3 className="font-medium mb-2">Before (entity row counts)</h3>
-            <p>Quote: {preview.before.quote}</p>
-            <p>Load: {preview.before.load}</p>
-            <p>Driver+Vehicle: {preview.before.dv}</p>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white p-6 rounded-lg border border-black/12">
+              <h3 className="font-medium mb-2">Input row counts</h3>
+              <p className="text-sm">Quote: {preview.before.quote}</p>
+              <p className="text-sm">Load: {preview.before.load}</p>
+              <p className="text-sm">Driver+Vehicle: {preview.before.dv}</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg border border-black/12">
+              <h3 className="font-medium mb-2">Join steps</h3>
+              {preview.joinSteps && preview.joinSteps.length > 0 ? (
+                <div className="space-y-2 text-sm">
+                  {preview.joinSteps.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="font-medium">{step.name}</span>
+                      <span className="text-[rgba(0,0,0,0.6)]">
+                        {step.leftKey} → {step.rightKey}
+                        {step.fallbackKey && ` (fallback: ${step.fallbackKey})`}
+                      </span>
+                      <span className="text-primary font-medium">{step.rowsBefore} → {step.rowsAfter} rows</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[rgba(0,0,0,0.6)]">Add joins to see step-by-step results.</p>
+              )}
+              <p className="text-lg font-semibold mt-2">Final: {preview.after} rows</p>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded shadow-md-1">
-            <h3 className="font-medium mb-2">After (joined flat table)</h3>
-            <p className="text-lg font-semibold">{preview.after} rows</p>
-            {profile.aiMode === 'claude' && joins.length === 0 && (
-              <p className="text-[rgba(0,0,0,0.6)] text-sm mt-1">No joins configured yet. Add joins via natural language above to see the joined result.</p>
-            )}
-            {preview.after === 0 && joins.length > 0 && (
-              <p className="text-amber-600 text-sm mt-1">
-                No rows joined. Check: load_ids in Quote match Load.load_id; Load has allocated_vehicle_id or driver_id matching Driver+Vehicle.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
-      {preview && (preview.flatRows?.length ?? 0) > 0 && (
-        <div className="bg-white p-6 rounded shadow-md-1">
-          <h3 className="font-medium mb-3">Joined flat rows</h3>
-          <DataTableWithSearch
-            data={preview.flatRows ?? []}
-            maxRows={50}
-            searchPlaceholder="Search in table..."
-          />
-        </div>
+          <div className="bg-white p-6 rounded-lg border border-black/12">
+            <h3 className="font-medium mb-3">Joined flat table</h3>
+            {(preview.flatRows?.length ?? 0) > 0 ? (
+              <DataTableWithSearch
+                data={preview.flatRows ?? []}
+                maxRows={50}
+                searchPlaceholder="Search in table..."
+              />
+            ) : (
+              <div className="border border-black/12 rounded-lg overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-black/4">
+                      <th className="px-3 py-2 text-left font-medium text-[rgba(0,0,0,0.6)]">(no rows)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="px-3 py-4 text-[rgba(0,0,0,0.6)]">
+                        No rows joined. Ensure: Quote.load_id matches Load.load_id; Load.allocated_vehicle_id or Load.driver_id matches Driver+Vehicle when present. Rows with null vehicle/driver links are still included with nulls in those columns.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       <div className="flex justify-end gap-2">

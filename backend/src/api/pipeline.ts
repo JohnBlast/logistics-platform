@@ -5,12 +5,12 @@ import { runValidation } from '../services/validationService.js'
 export const pipelineRouter = Router()
 
 pipelineRouter.post('/validate', (req, res) => {
-  const { profileId, sessionData, joinOnly, filtersOverride } = req.body
+  const { profileId, sessionData, joinOnly, filtersOverride, joinsOverride } = req.body
   if (!profileId || !sessionData) {
     return res.status(400).json({ error: 'profileId and sessionData required' })
   }
   try {
-    const summary = runValidation(profileId, sessionData, { joinOnly, filtersOverride })
+    const summary = runValidation(profileId, sessionData, { joinOnly, filtersOverride, joinsOverride })
     res.json(summary)
   } catch (e) {
     res.status(400).json({ error: (e as Error).message })

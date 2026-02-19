@@ -20,9 +20,19 @@ const STEP_LABELS: Record<Step, string> = {
   validation: 'Validation',
 }
 
-const REQUIRED_QUOTE = ['quote_id', 'load_id', 'quoted_price', 'status', 'created_at', 'updated_at']
-const REQUIRED_LOAD = ['load_id', 'status', 'load_poster_name', 'created_at', 'updated_at']
-const REQUIRED_DV = ['vehicle_id', 'driver_id', 'vehicle_type', 'registration_number', 'name', 'fleet_id', 'created_at', 'updated_at']
+const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
+function getRequiredFromSchema(entities: { fields: { name: string; required?: boolean }[] }[] | null, key: string): string[] {
+  if (!entities?.length) return []
+  const indices = SCHEMA_KEYS[key] || []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const i of indices) {
+    for (const f of entities[i]?.fields || []) {
+      if (f.required && !seen.has(f.name)) { seen.add(f.name); out.push(f.name) }
+    }
+  }
+  return out
+}
 
 function allRequiredMapped(m: Record<string, string> | undefined, required: string[]): boolean {
   if (!m) return false
@@ -44,6 +54,7 @@ export function ETLFlow() {
   const [successToast, setSuccessToast] = useState(false)
   const [lastValidFingerprint, setLastValidFingerprint] = useState<string | null>(null)
   const [claudeAvailable, setClaudeAvailable] = useState<boolean | null>(null)
+  const [schemaEntities, setSchemaEntities] = useState<{ fields: { name: string; required?: boolean }[] }[] | null>(null)
 
   const computeFingerprint = () =>
     JSON.stringify({
@@ -66,19 +77,32 @@ export function ETLFlow() {
   const saveDisabledByReRun =
     lastValidFingerprint != null && computeFingerprint() !== lastValidFingerprint
 
+  const requiredQuote = getRequiredFromSchema(schemaEntities, 'quote')
+  const requiredLoad = getRequiredFromSchema(schemaEntities, 'load')
+  const requiredDv = getRequiredFromSchema(schemaEntities, 'driver_vehicle')
   const mappingOk =
-    allRequiredMapped(profile?.mappings?.quote, REQUIRED_QUOTE) &&
-    allRequiredMapped(profile?.mappings?.load, REQUIRED_LOAD) &&
-    allRequiredMapped(profile?.mappings?.driver_vehicle, REQUIRED_DV)
+    allRequiredMapped(profile?.mappings?.quote, requiredQuote) &&
+    allRequiredMapped(profile?.mappings?.load, requiredLoad) &&
+    allRequiredMapped(profile?.mappings?.driver_vehicle, requiredDv)
 
-  const stepStatus: Record<Step, 'ok' | 'error' | 'active' | 'skipped'> = {
-    ingestion: step === 'ingestion' ? 'active' : canProceedFromIngestion ? 'ok' : 'error',
-    mapping: step === 'mapping' ? 'active' : mappingOk ? 'ok' : 'error',
-    enum_mapping: step === 'enum_mapping' ? 'active' : skippedSteps.has('enum_mapping') ? 'skipped' : 'ok',
-    joins: step === 'joins' ? 'active' : skippedSteps.has('joins') ? 'skipped' : 'ok',
-    filtering: step === 'filtering' ? 'active' : skippedSteps.has('filtering') ? 'skipped' : 'ok',
-    validation: step === 'validation' ? 'active' : 'ok',
-  }
+  const currentStepIdx = STEPS.indexOf(step)
+  const stepStatus: Record<Step, 'ok' | 'error' | 'active' | 'skipped' | 'pending'> = (() => {
+    const out = {} as Record<Step, 'ok' | 'error' | 'active' | 'skipped' | 'pending'>
+    STEPS.forEach((s, idx) => {
+      if (step === s) {
+        out[s] = 'active'
+      } else if (skippedSteps.has(s)) {
+        out[s] = 'skipped'
+      } else if (idx < currentStepIdx) {
+        if (s === 'ingestion') out[s] = canProceedFromIngestion ? 'ok' : 'error'
+        else if (s === 'mapping') out[s] = mappingOk ? 'ok' : 'error'
+        else out[s] = 'ok'
+      } else {
+        out[s] = 'pending'
+      }
+    })
+    return out
+  })()
 
   const handleSkip = (s: Step) => {
     setSkippedSteps((prev) => new Set(prev).add(s))
@@ -97,6 +121,7 @@ export function ETLFlow() {
       .catch(setError)
       .finally(() => setLoading(false))
     api.health.ai().then((r) => setClaudeAvailable(r.claudeAvailable)).catch(() => setClaudeAvailable(false))
+    api.schema.get().then((r) => setSchemaEntities((r as { entities: { fields: { name: string; required?: boolean }[] }[] }).entities ?? [])).catch(() => setSchemaEntities(null))
   }, [id])
 
   const handleSave = async () => {
@@ -155,7 +180,8 @@ export function ETLFlow() {
           {STEPS.map((s, idx) => {
             const status = stepStatus[s]
             const isActive = step === s
-            const isComplete = status === 'ok' || (step !== s && status !== 'error' && status !== 'skipped')
+            const isComplete = status === 'ok'
+            const isSkipped = status === 'skipped'
             return (
               <div key={s} className="flex items-center shrink-0">
                 <button
@@ -166,20 +192,29 @@ export function ETLFlow() {
                       ? 'bg-primary text-white shadow-md-2 scale-105'
                       : status === 'error'
                         ? 'bg-red-50 text-red-800 border-2 border-red-300'
-                        : status === 'skipped'
-                          ? 'bg-black/6 text-[rgba(0,0,0,0.5)] border border-black/12'
+                        : isSkipped
+                          ? 'bg-amber-50 text-amber-800 border-2 border-amber-300'
                           : 'bg-white border border-black/12 shadow-md-1 hover:shadow-md-2 hover:border-primary/30'
                   }`}
                 >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                    isActive ? 'bg-white/20' : status === 'error' ? 'bg-red-200' : 'bg-black/8'
-                  }`}>
-                    {isComplete && !isActive ? '✓' : idx + 1}
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                      isActive
+                        ? 'bg-white/20'
+                        : status === 'error'
+                          ? 'bg-red-200'
+                          : isSkipped
+                            ? 'bg-amber-200'
+                            : 'bg-black/8'
+                    }`}
+                    title={isSkipped ? 'Skipped' : isComplete ? 'Completed' : status === 'pending' ? 'Pending' : ''}
+                  >
+                    {isComplete && !isActive ? '✓' : isSkipped ? '⚠' : idx + 1}
                   </span>
                   <span className="font-medium text-sm hidden sm:inline">{STEP_LABELS[s]}</span>
                 </button>
                 {idx < STEPS.length - 1 && (
-                  <div className={`w-8 h-0.5 mx-1 ${isComplete ? 'bg-primary/50' : 'bg-black/12'}`} />
+                  <div className={`w-8 h-0.5 mx-1 ${isComplete || isSkipped ? 'bg-black/20' : 'bg-black/12'}`} />
                 )}
               </div>
             )
@@ -202,6 +237,7 @@ export function ETLFlow() {
           onUpdate={setSessionData}
           onNext={() => setStep('mapping')}
           canProceed={!!canProceedFromIngestion}
+          aiMode={profile.aiMode}
         />
       )}
 

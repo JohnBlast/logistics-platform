@@ -14,10 +14,10 @@ import { claudeSuggestEnumMappings } from '../services/claudeService.js'
 export const schemaRouter = Router()
 
 const ENTITY_DESCRIPTIONS: Record<string, string> = {
-  Quote: 'Price offered by fleet for a load',
-  Load: 'Shipping job',
-  Driver: 'Person operating vehicle; belongs to fleet',
-  Vehicle: 'Truck/van',
+  Quote: 'Price offered by a fleet for a load; status: draft, sent, accepted, rejected, expired',
+  Load: 'Shipping job; status: draft, posted, in_transit, completed, cancelled',
+  Driver: 'Person operating vehicle; belongs to a fleet',
+  Vehicle: 'Truck or van; has type enum and optional driver assignment',
 }
 
 const FLAT_TABLE_ENUMS: Record<string, string[]> = {
