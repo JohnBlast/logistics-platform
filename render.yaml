@@ -1,0 +1,10 @@
+# Render Blueprint - optional; use this if you want IaC
+# If services were created manually, you may need to connect this blueprint
+# or update Build Command in Dashboard to: cd frontend && npm install && npm run build
+services:
+  - type: web
+    name: logistics-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
