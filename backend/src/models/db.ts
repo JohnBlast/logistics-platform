@@ -13,7 +13,7 @@ if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true })
 }
 
-export const db = new Database(dbPath)
+export const db: import('better-sqlite3').Database = new Database(dbPath)
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS profiles (

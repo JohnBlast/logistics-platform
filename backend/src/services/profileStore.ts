@@ -44,7 +44,7 @@ export interface Profile {
 
 export function listProfiles(): Profile[] {
   const rows = db.prepare('SELECT * FROM profiles ORDER BY updatedAt DESC').all()
-  return rows.map(rowToProfile)
+  return (rows as Record<string, unknown>[]).map(rowToProfile)
 }
 
 export function getProfile(id: string): Profile | null {
