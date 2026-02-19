@@ -34,3 +34,11 @@ For each feature, use the slash commands in your AI agent:
 ## Environment
 
 Set `SPECIFY_FEATURE` to the feature directory name when working on a specific feature in non-Git contexts (e.g. `001-etl-configurator`).
+
+## Deployment
+
+001 ETL Configurator is deployed to Render:
+- **Frontend** (Static Site): [logistics-platform-demo.onrender.com](https://logistics-platform-demo.onrender.com)
+- **Backend** (Web Service): [logistics-platform-ttx9.onrender.com](https://logistics-platform-ttx9.onrender.com)
+
+Full deployment setup: [README.md](../README.md#deployment-render)

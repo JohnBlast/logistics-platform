@@ -8,7 +8,7 @@
 
 | # | Product | Golden Source PRD | Spec | Status |
 |---|---------|-------------------|------|--------|
-| **001** | ETL Configurator | [001-ETL-PRD.md](.specify/specs/001-etl-configurator/001-ETL-PRD.md) | [spec.md](.specify/specs/001-etl-configurator/spec.md) | Spec complete |
+| **001** | ETL Configurator | [001-ETL-PRD.md](.specify/specs/001-etl-configurator/001-ETL-PRD.md) | [spec.md](.specify/specs/001-etl-configurator/spec.md) | Built & deployed |
 | **002** | Data Discovery | — | [placeholder](.specify/specs/002-data-discovery/README.md) | Planned |
 | **003** | Job Market | — | [placeholder](.specify/specs/003-job-market/README.md) | Planned |
 
@@ -40,7 +40,7 @@
 **Actor:** Operations manager or admin staff  
 **Goal:** Configure an ETL pipeline so logistics data is transformed and ready for downstream AI applications.
 
-**Steps:** 1) Open platform, select ETL. 2) Land on Configuration Profiles. 3) Create profile (name, description, data model version, AI mode). 4) Enter ETL flow; step indicator shows progress. 5) Ingestion: view data model breakdown; Generate for Quote, Load, Driver+Vehicle. 6) Mapping: review AI suggestions; lock correct; suggest remaining; fix errors. 7) Static Joins: configure Quote→Load, Load→Driver+Vehicle (optional NL). 8) Filtering: define inclusion/exclusion in plain language. 9) Run Pipeline Validation; see summary. 10) If ≥1 row succeeds, Save; config becomes Active.
+**Steps:** 1) Open platform, select ETL. 2) Land on Configuration Profiles. 3) Create profile (name, description, data model version, AI mode). 4) Enter ETL flow; step indicator shows progress. 5) Ingestion: view data model breakdown; Generate for Quote, Load, Driver+Vehicle. 6) Mapping: review AI suggestions; lock correct; suggest remaining; fix errors. 7) Enum Mapping: map source enum values to target schema values per field (optional; AI can suggest; skip allowed). 8) Static Joins: configure Quote→Load, Load→Driver+Vehicle (optional NL). 9) Filtering: define inclusion/exclusion in plain language. 10) Run Pipeline Validation; see summary. 11) If ≥1 row succeeds, Save; config becomes Active.
 
 **Outcome:** ETL configuration Active; data ready for downstream.
 
@@ -51,7 +51,7 @@
 **Steps:** Go to Data Model Preview page → Review fields per entity.
 
 ### Journey 4: Reference data model during ETL
-**Steps:** In Mapping/Joins/Filtering → Open data model pop-up → Check fields → Apply info.
+**Steps:** In Mapping, Enum Mapping, Joins, or Filtering → Open data model pop-up → Check fields → Apply info.
 
 ### Journey 5: Duplicate an existing configuration
 **Steps:** Find profile → Duplicate → Edit new Draft → Validate and save.
@@ -71,11 +71,11 @@
 
 ### 3.1 General
 - **FR-1.1** The system must provide a sidebar menu to switch between ETL, Data Discovery, and Job Market.
-- **FR-1.2** The system must display a step-by-step UI showing progress; indicate errors, warnings, skipped, completed.
+- **FR-1.2** The system must display a step-by-step UI (Ingestion → Mapping → Enum Mapping → Joins → Filtering → Validation) showing progress; indicate errors, warnings, skipped, completed.
 - **FR-1.3** The system must validate in real-time; instant feedback.
 - **FR-1.4** The system must show before/after previews in Ingestion, Mapping, Joins, Filtering; compact layout.
 - **FR-1.5** The system must chain steps; each uses previous output; Ingestion reads raw only.
-- **FR-1.6** The system must offer AI Mode and Mocked AI (selectable at Ingestion).
+- **FR-1.6** The system must offer AI Mode (Claude) and Mocked AI; selectable at profile creation; applies to Mapping, Enum Mapping, Joins, and Filtering.
 - **FR-1.7** The system must provide at least one default ETL config as template.
 - **FR-1.8** The system must store configs; dirty data regenerated, not persisted.
 - **FR-1.9** The system must suggest actionable fixes for unmapped fields, invalid enums, join mismatches.
@@ -117,6 +117,12 @@
 - **FR-5.6** All required mapped before advance.
 - **FR-5.7** Driver+Vehicle as single mapping surface.
 
+### 3.5a Enum Mapping
+- **FR-5a.1** Step after Mapping, before Joins; user maps source enum values to target schema enum values per entity/field.
+- **FR-5a.2** AI can suggest enum value mappings (Claude or mocked); user applies or edits manually.
+- **FR-5a.3** Unmapped source values become null at validation (per FR-11.1).
+- **FR-5a.4** Enum mappings persisted with profile; step skippable.
+
 ### 3.6 Deduplication
 - **FR-6.1** Per entity before joins.
 - **FR-6.2** Backend-only; user does not see.
@@ -141,7 +147,7 @@
 - **FR-9.1** Run pipeline test before save.
 - **FR-9.2** Validate full config on dirty data.
 - **FR-9.3** ≥1 row must succeed for pass.
-- **FR-9.4** Show rows successful, dropped, fields with warnings.
+- **FR-9.4** Show rows successful, dropped, fields with warnings; optional Included/Excluded tabs.
 - **FR-9.5** Save only when validation passes.
 - **FR-9.6** On save: new Active; previous Archived.
 
@@ -166,6 +172,8 @@
 
 **Mapping:** GR-3.1 Block advance with unmapped required; GR-3.2 1:1 only; GR-3.3 Data model source of truth; GR-3.4 No duplicate target; GR-3.5 Unmapped optional allowed; GR-3.6 Lock persists.
 
+**Enum Mapping:** GR-3a.1 Target values from schema; GR-3a.2 One source per target; GR-3a.3 Applied before joins.
+
 **Joins:** GR-4.1 Join keys must exist; GR-4.2 INNER only; GR-4.3 Fixed order; GR-4.4 Load needs vehicle or driver; GR-4.5 Drop orphan rows; GR-4.6 No circular joins.
 
 **Filtering:** GR-5.1 Parseable rules; GR-5.2 Warn filter-all; GR-5.3 Flat table only; GR-5.4 Field existence.
@@ -184,7 +192,7 @@
 
 ## 5. Interaction Model
 
-**Navigation:** Sidebar (ETL, Data Discovery, Job Market); linear ETL steps; backward allowed; step indicator; Show Overall Data separate page.
+**Navigation:** Sidebar (ETL, Data Discovery, Job Market); linear ETL steps (Ingestion → Mapping → Enum Mapping → Joins → Filtering → Validation); backward allowed; step indicator; Show Overall Data separate page.
 
 **Validation:** Real-time; inline errors; actionable suggestions; scope: unmapped fields, invalid enums, join mismatches.
 
@@ -251,6 +259,70 @@
 No scheduled ETL; multi-file merge; streaming; auth; AI learning; migration; advanced transforms; notifications; export; versioning; collaboration; mobile; audit; external integration; examples library; outer joins.
 
 **Technical:** CSV/Excel; 10MB; 1:1 mapping; INNER only; 1280px min; NL Joins/Filters only; configs persist, dirty data does not.
+
+---
+
+## 9. Technical Overview
+
+**Architecture:** Monorepo (npm workspaces). Frontend: React + Vite + TypeScript + Tailwind. Backend: Node.js + Express + TypeScript + SQLite (better-sqlite3). AI: Claude (optional) or mocked mode.
+
+**ETL Routes:**
+
+| Route | Page |
+|-------|------|
+| `/` | Redirects to `/etl` |
+| `/etl` | Configuration Profiles list |
+| `/etl/profiles/:id` | ETL flow (Ingestion → Mapping → Joins → Filtering → Validation) |
+| `/etl/model` | Data Model Preview |
+| `/etl/simulate` | Show Overall Data & Simulate Pipeline |
+
+**Docs:** [README.md](README.md) for local run and deployment.
+
+---
+
+## 9a. AI Modes
+
+| Mode | When to use | Behavior |
+|------|-------------|----------|
+| **Claude** | Live AI assistance; best accuracy | Uses Anthropic Claude API for mapping suggestions, NL join/filter interpretation, and enum mapping suggestions. Requires `ANTHROPIC_API_KEY`. Interprets varied natural language (e.g. "include loads in transit") and suggests column mappings from column names + sample values. |
+| **Mocked** | Demos, offline, no API key | Uses deterministic/predefined logic. No API key. Fuzzy column-name matching for mapping; rule-based interpretation for joins/filters; simple enum matching. May produce less accurate suggestions; user corrects as needed. |
+
+Both modes apply to: Mapping, Enum Mapping, Joins (NL), Filtering (NL). AI mode is chosen at profile creation and stored with the profile.
+
+**Claude unavailable**: When a profile uses Claude but `ANTHROPIC_API_KEY` is not set, the app shows a warning banner; AI features (mapping, joins, filters) do not work until the key is configured and the backend restarted.
+
+---
+
+## 10. Deployment & Live Demo
+
+The ETL Configurator is deployed to [Render](https://render.com) as two services:
+
+| Service | Type | Live URL |
+|---------|------|----------|
+| **Frontend** | Static Site | https://logistics-platform-demo.onrender.com |
+| **Backend API** | Web Service | https://logistics-platform-ttx9.onrender.com |
+
+### Render Setup
+
+**Backend (Web Service):** Root dir = repo root. Build: `npm install; npm run build`. Start: `npx tsx backend/src/index.ts`.
+
+**Frontend (Static Site):** Root dir = `frontend`. Build: `npm install && npm run build`. Publish dir = `dist`. Add rewrite `/*` → `/index.html` for SPA routing. Set `VITE_API_URL` to backend URL.
+
+**Auto-deploy:** Enable in each service’s Settings so pushes to `main` trigger deploys.
+
+### Environment Variables
+
+| Variable | Where | Purpose |
+|----------|------|---------|
+| `VITE_API_URL` | Frontend (build-time) | Backend API URL; required for production |
+| `ANTHROPIC_API_KEY` | Backend | Claude API key; omit for mocked AI |
+| `AI_MODE` | Backend | `claude` or `mocked` |
+| `DATABASE_PATH` | Backend | SQLite path (default: `./data/etl.db`) |
+| `PORT` | Backend | Server port (default: 3001) |
+
+**SQLite persistence**: On Render's default disk, SQLite data can be lost on redeploy. For production, use a Persistent Disk or migrate to Postgres.
+
+Full setup: [README.md](README.md#deployment-render)
 
 ---
 

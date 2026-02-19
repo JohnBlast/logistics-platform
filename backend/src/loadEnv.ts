@@ -21,6 +21,5 @@ if (!loaded.parsed || Object.keys(loaded.parsed).length === 0) {
 const key = process.env.ANTHROPIC_API_KEY
 const hasKey = !!key && key.startsWith('sk-ant-')
 if (!hasKey) {
-  console.warn('[backend] ANTHROPIC_API_KEY not set or invalid. AI features (filtering, joins, mapping) will use fallback or fail.')
-  console.warn(`[backend] Checked .env at: ${envPath}`)
+  console.warn('[backend] ANTHROPIC_API_KEY not set or invalid. Claude AI features will not work.')
 }

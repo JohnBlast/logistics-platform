@@ -36,9 +36,16 @@ Open http://localhost:5173. Select ETL from sidebar.
 
 ---
 
-## Mocked AI Mode
+## AI Modes
 
-Set `AI_MODE=mocked` to run without Claude API key. AI suggestions and NL interpretation use predefined logic. Useful for demos and offline development.
+| Mode | Use when | Behavior |
+|------|----------|----------|
+| **Claude** | Live AI assistance | Uses Anthropic API; best accuracy for mapping, NL joins/filters, enum mappings. Requires `ANTHROPIC_API_KEY`. |
+| **Mocked** | Demos, offline, no key | Deterministic logic; fuzzy column matching, rule-based NL. May produce errors user corrects. |
+
+Set `AI_MODE=mocked` in `.env` to run without an API key. AI mode is chosen at profile creation.
+
+**Claude unavailable**: If a profile uses Claude but `ANTHROPIC_API_KEY` is not set, the app shows a warning banner; AI features do not work until the key is configured and backend restarted.
 
 ---
 
@@ -52,3 +59,13 @@ On first run, a default ETL template profile is created. User can generate data,
 
 - **Configs**: SQLite at `./data/etl.db` (or `DATABASE_PATH`)
 - **Dirty data**: In-memory only; regenerated per session
+
+---
+
+## Deployed Demo
+
+Live instance on Render:
+- **Frontend**: https://logistics-platform-demo.onrender.com
+- **Backend**: https://logistics-platform-ttx9.onrender.com
+
+See project [README.md](../../../README.md#deployment-render) for deploy setup.

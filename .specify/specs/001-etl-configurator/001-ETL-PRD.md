@@ -70,15 +70,16 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 1. Open the platform and select **ETL** from the sidebar.
 2. Land on **Configuration Profiles**; see the default template and list of existing profiles.
 3. Click **Create** to start a new profile; enter name, description, select data model version (V1, V2, …), and choose AI mode (Claude or Mocked AI).
-4. Enter the ETL flow; the step indicator shows progress (Configuration Profiles → Ingestion → Mapping → Joins → Filtering → Validation).
+4. Enter the ETL flow; the step indicator shows progress (Configuration Profiles → Ingestion → Mapping → Enum Mapping → Joins → Filtering → Validation).
 5. On **Ingestion**, view the target data model broken down per object (Load, Quote, Driver+Vehicle).
 6. Click **Generate** for each data object (Quote, Load, Driver+Vehicle); see before/after preview.
 7. Proceed to **Mapping** once all three objects have data.
 8. Review AI mapping suggestions with confidence scores; lock correct mappings, ask AI to suggest remaining; correct any errors using suggested fixes.
-9. Proceed to **Static Joins**; configure join operations (Quote→Load, Load→Driver+Vehicle), optionally using natural language.
-10. Proceed to **Filtering**; define inclusion/exclusion rules in plain language; see before/after preview.
-11. Run **Pipeline Validation**; see summary (rows successful, dropped, fields with warnings).
-12. If at least one row succeeds, click **Save**; the config becomes Active, the previous Active becomes Archived.
+9. Proceed to **Enum Mapping**; map source enum values (e.g. status, vehicle_type) to target schema values per field; AI can suggest mappings; step is skippable.
+10. Proceed to **Static Joins**; configure join operations (Quote→Load, Load→Driver+Vehicle), optionally using natural language.
+11. Proceed to **Filtering**; define inclusion/exclusion rules in plain language; see before/after preview.
+12. Run **Pipeline Validation**; see summary (rows successful, dropped, fields with warnings).
+13. If at least one row succeeds, click **Save**; the config becomes Active, the previous Active becomes Archived.
 
 **Outcome:** ETL configuration is Active; data is transformed and ready for downstream use.
 
@@ -223,7 +224,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-1.3 | The system must validate in real-time as the user configures and provide instant feedback on incorrect or missing configuration. |
 | FR-1.4 | The system must show before/after data previews during user-facing steps (Ingestion, Mapping, Joins, Filtering), with a layout that keeps the screen compact and avoids excessive scrolling. |
 | FR-1.5 | The system must chain data so each step uses the output of the previous step as input; Ingestion must be the only step that reads raw source data. |
-| FR-1.6 | The system must offer two modes—AI Mode and Mocked AI—selectable during Ingestion, toggling between live Claude AI and preset mocked AI configuration for each ETL step; Mocked AI may produce errors the user must correct. |
+| FR-1.6 | The system must offer two modes—AI Mode (Claude) and Mocked AI—selectable at profile creation; applies to Mapping, Enum Mapping, Joins, and Filtering; Mocked AI may produce errors the user must correct. |
 | FR-1.7 | The system must provide at least one ETL configuration by default as a template (conforming to the data model); the user must generate data and run the pipeline. |
 | FR-1.8 | The system must store previous ETL configurations; dirty data must be regenerated (not persisted), and the user must be able to generate new dirty data at any time. |
 | FR-1.9 | The system must suggest actionable fixes when errors occur (e.g., "Required field X is unmapped. Suggest mapping source column 'Quote ID' → quote_id"); this must apply to unmapped required fields, invalid enum values, and join key mismatches (IDs that don't match). |
@@ -293,6 +294,17 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-5.6 | The system must require all required fields to be mapped before advancing to the next step. |
 | FR-5.7 | The system must treat Driver+Vehicle as a single mapping surface in the UI. |
 
+### 5a. Enum Mapping
+
+| ID | Requirement |
+|----|-------------|
+| FR-5a.1 | The system must provide an Enum Mapping step after Mapping, before Joins. |
+| FR-5a.2 | The system must allow the user to map source enum values to target schema enum values per entity and field (e.g. status, vehicle_type, requested_vehicle_type). |
+| FR-5a.3 | The system must support AI-suggested enum mappings (Claude or Mocked AI) for source values to valid target values. |
+| FR-5a.4 | The system must apply enum mappings before joins; unmapped source values become null at validation (per FR-11.1). |
+| FR-5a.5 | The system must persist enum mappings with the profile. |
+| FR-5a.6 | The system must allow the user to skip the Enum Mapping step. |
+
 ### 6. Deduplication
 
 | ID | Requirement |
@@ -329,7 +341,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-9.1 | The system must require the user to run a pipeline test before saving the ETL configuration. |
 | FR-9.2 | The system must run validation against the full configuration using the dirty data. |
 | FR-9.3 | The system must require at least one row to successfully complete the full pipeline (after joins and filtering) for validation to pass. |
-| FR-9.4 | The system must show in the UI: rows successful, rows dropped (failed + filtered), and fields with warnings or nulls. |
+| FR-9.4 | The system must show in the UI: rows successful (included), rows dropped (by dedup, joins, or filters), and fields with warnings or nulls; optionally an Included/Excluded tabbed view to inspect successful rows vs rows excluded by filter rules. |
 | FR-9.5 | The system must allow the user to save the ETL configuration only when validation passes. |
 | FR-9.6 | The system must, on save, make the new config Active and the previous Active config Archived. |
 
@@ -380,12 +392,20 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 
 | ID | Guardrail | Behaviour |
 |----|-----------|-----------|
-| GR-3.1 | Block advance with unmapped required | The system must block "Next" to Joins until all required fields are mapped for all three data objects. |
+| GR-3.1 | Block advance with unmapped required | The system must block advance from Mapping until all required fields are mapped for all three data objects. |
 | GR-3.2 | 1:1 mapping only | The system must enforce one source column per target field. No concatenation, splitting, or multi-source mapping in MVP. |
 | GR-3.3 | Data model as source of truth | The system must not allow mapping to target fields that do not exist in the selected data model version. |
 | GR-3.4 | No duplicate target mapping | The system must not allow the same target field to be mapped twice (e.g., quote_id from two columns). One target = one source. |
 | GR-3.5 | Unmapped optional allowed | The system must allow optional fields to remain unmapped. User may proceed with nulls for optional fields. |
 | GR-3.6 | Lock persists | The system must persist locked mappings when user invokes "Suggest remaining"; locked mappings are not overwritten by AI. |
+
+### 3a. Enum Mapping
+
+| ID | Guardrail | Behaviour |
+|----|-----------|-----------|
+| GR-3a.1 | Target values from schema | The system must allow mapping only to valid enum values defined in the data model for each field. |
+| GR-3a.2 | One source value per target | Each source value maps to at most one target value; multiple source values may map to the same target. |
+| GR-3a.3 | Enum mappings applied before joins | The system must apply enum mappings to mapped rows before dedup and joins. |
 
 ### 4. Static Joins
 
@@ -413,7 +433,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 |----|-----------|-----------|
 | GR-6.1 | Save blocked on zero rows | The system must block Save when pipeline validation produces zero successful rows. Show message: e.g., "No rows passed. Adjust mapping, joins, or filters." |
 | GR-6.2 | Run before Save | The system must require the user to run pipeline validation before Save is enabled. Save disabled until validation has been run and passed. |
-| GR-6.3 | Validation uses current config | The system must run validation against the current mapping, joins, and filters. Changes after last run require re-run. |
+| GR-6.3 | Validation uses current config | The system must run validation against the current mapping, enum mappings, joins, and filters. Changes after last run require re-run. |
 | GR-6.4 | Validation uses current data | The system must run validation against the current dirty data (last uploaded/generated). Regenerating data requires re-run. |
 | GR-6.5 | At least one success | The system must consider validation passed only when at least one row completes the full pipeline (after joins and filtering). |
 | GR-6.6 | Warnings do not block Save | The system must allow Save when there are warnings (e.g., nulls, enum issues) as long as ≥1 row succeeds. |
@@ -1007,7 +1027,7 @@ Configuration Profile
 | C-4.1 | Edit only Draft | Active and Archived profiles cannot be edited. |
 | C-4.2 | One Active profile | Only one profile can be Active at a time. |
 | C-4.3 | Save requires validation pass | At least one row must succeed; Save disabled otherwise. |
-| C-4.4 | Proceed gates | Ingestion: all three objects; Mapping: all required fields. |
+| C-4.4 | Proceed gates | Ingestion: all three objects; Mapping: all required fields; Enum Mapping, Joins, Filtering: skippable. |
 | C-4.5 | No auto-apply suggestions | User must explicitly apply error suggestions. |
 | C-4.6 | Show Overall Data requires Active | Page inaccessible without Active profile. |
 
@@ -1019,3 +1039,40 @@ Configuration Profile
 | C-5.2 | Prototype | Portfolio/demo focus; not production-hardened. |
 | C-5.3 | AI mode choice | User selects Claude or Mocked AI at profile creation; applies to all steps. |
 | C-5.4 | Data model version binding | Profile bound to version at creation; older profiles may stay on old version. |
+
+---
+
+## Appendix A: Technical Architecture
+
+**Stack:** Frontend: React, Vite, TypeScript, Tailwind CSS. Backend: Node.js, Express, TypeScript, SQLite (better-sqlite3). AI: Claude (optional) or mocked mode.
+
+**Routes:** `/etl` (profiles), `/etl/profiles/:id` (ETL flow), `/etl/model` (data model preview), `/etl/simulate` (show overall data).
+
+**API:** REST; profiles CRUD; ingest (upload, generate); mapping suggest; joins/filters config + NL interpret; pipeline run/validate.
+
+---
+
+## Appendix B: Deployment
+
+The ETL Configurator is deployed to [Render](https://render.com):
+- **Frontend** (Static Site): https://logistics-platform-demo.onrender.com
+- **Backend** (Web Service): https://logistics-platform-ttx9.onrender.com
+
+**Build:** Backend from repo root (`npm install; npm run build`); frontend from `frontend/` (`npm install && npm run build`). Frontend requires `VITE_API_URL` and SPA rewrite `/*` → `/index.html`.
+
+**SQLite on Render**: Default filesystem is ephemeral; data can be lost on redeploy. Use Persistent Disk or Postgres for production.
+
+Full setup: [README.md](../../../README.md#deployment-render)
+
+---
+
+## Appendix C: AI Modes (Claude vs Mocked)
+
+| Mode | Purpose | Behavior |
+|------|---------|----------|
+| **Claude** | Live AI assistance | Uses Anthropic Claude API for: mapping suggestions (from column names + sample values), NL join interpretation, NL filter interpretation, enum mapping suggestions. Requires `ANTHROPIC_API_KEY`. Handles varied natural language; higher accuracy. |
+| **Mocked** | Demos, offline, no key | Deterministic logic: fuzzy column-name matching for mapping; rule-based NL interpretation for joins/filters; simple enum value matching. May produce incorrect suggestions; user corrects. |
+
+**Scope:** Both apply to Mapping, Enum Mapping, Joins, and Filtering. Selected at profile creation; persisted with profile.
+
+**Claude unavailable:** When the user selects Claude but `ANTHROPIC_API_KEY` is not configured on the backend, the system shows a warning banner; AI features do not work until the key is set and backend restarted. No silent fallback to mocked.

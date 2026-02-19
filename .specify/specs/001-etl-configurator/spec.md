@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-etl-configurator`
 **Created**: 2025-02-17
-**Status**: Draft
+**Status**: Implemented
 **Product**: Logistics Platform – First Product
 **Source of Truth**: [001-ETL-PRD.md](001-ETL-PRD.md) — full product requirements; reference when specifying, clarifying, or validating.
 
@@ -64,15 +64,16 @@ A user configures an ETL pipeline end-to-end so logistics data is transformed an
 
 **Why this priority**: Primary value of the product.
 
-**Independent Test**: Create profile → generate data → map → join → filter → validate → save. No file upload. Config becomes Active.
+**Independent Test**: Create profile → generate data → map → enum mapping (optional) → join → filter → validate → save. No file upload. Config becomes Active.
 
 **Acceptance Scenarios**:
 
 1. **Given** a new Draft profile, **When** user generates data for Quote, Load, Driver+Vehicle, **Then** before/after preview appears and "Next" enables
 2. **Given** data in Ingestion, **When** user completes mapping for all required fields, **Then** AI suggestions with confidence scores appear; user can lock and "Suggest remaining"
-3. **Given** mapped data, **When** user configures joins (Quote→Load, Load→Driver+Vehicle), **Then** join operations accept vehicle_id or driver_id fallback
-4. **Given** joined data, **When** user adds filter rules in natural language, **Then** AI interprets and applies; before/after shows row count change
-5. **Given** full config, **When** user runs validation and ≥1 row succeeds, **Then** Save enables; new config becomes Active, previous Active becomes Archived
+3. **Given** mapped data, **When** user reaches Enum Mapping step, **Then** user can map source enum values to target schema values per field; AI can suggest; step is skippable
+4. **Given** data after enum mapping (or skip), **When** user configures joins (Quote→Load, Load→Driver+Vehicle), **Then** join operations accept vehicle_id or driver_id fallback
+5. **Given** joined data, **When** user adds filter rules in natural language, **Then** AI interprets and applies; before/after shows row count change
+6. **Given** full config, **When** user runs validation and ≥1 row succeeds, **Then** Save enables; new config becomes Active, previous Active becomes Archived; summary shows rows included, rows dropped, Included/Excluded tabs for detail
 
 ---
 
@@ -108,7 +109,7 @@ A user completes full ETL using only generated dirty data.
 **Acceptance Scenarios**:
 
 1. **Given** Draft profile, **When** user clicks Generate for Quote, Load, Driver+Vehicle, **Then** all three have data; user proceeds without any upload
-2. **Given** generated data, **When** user completes mapping, joins, filters, **Then** validation passes with ≥1 row; user can Save
+2. **Given** generated data, **When** user completes mapping, enum mapping (optional), joins, filters, **Then** validation passes with ≥1 row; user can Save
 
 ---
 
@@ -118,7 +119,7 @@ A user looks up field definitions while configuring mapping, joins, or filters.
 
 **Acceptance Scenarios**:
 
-1. **Given** user is in Mapping, Joins, or Filtering, **When** user opens data model pop-up, **Then** sees required/optional, description, format, examples per field
+1. **Given** user is in Mapping, Enum Mapping, Joins, or Filtering, **When** user opens data model pop-up, **Then** sees required/optional, description, format, examples per field
 2. **Given** pop-up open, **When** user dismisses, **Then** returns to step; config unchanged
 
 ---
@@ -211,7 +212,7 @@ A user understands the target data model and mapping requirements before startin
 - FR-1.3: System MUST validate in real-time; instant feedback
 - FR-1.4: System MUST show before/after preview in Ingestion, Mapping, Joins, Filtering (compact layout)
 - FR-1.5: System MUST chain steps; each uses previous output; Ingestion reads raw only
-- FR-1.6: System MUST offer AI Mode and Mocked AI (selectable at Ingestion)
+- FR-1.6: System MUST offer Claude and Mocked AI (selectable at profile creation; applies to Mapping, Enum Mapping, Joins, Filtering)
 - FR-1.7: System MUST provide at least one default ETL config as template
 - FR-1.8: System MUST store configs; dirty data regenerated, not persisted
 - FR-1.9: System MUST suggest actionable fixes for unmapped fields, invalid enums, join mismatches
@@ -248,7 +249,8 @@ A user understands the target data model and mapping requirements before startin
 
 **Validation & Save**
 
-- FR-9.1 through FR-9.6: Run test before save; ≥1 row required; summary UI; Save only when pass; Active/Archived on save
+- FR-5a.1 through FR-5a.6: Enum Mapping step; map source→target enum values; AI suggest; skippable
+- FR-9.1 through FR-9.6: Run test before save; ≥1 row required; summary UI (rows included, dropped; Included/Excluded tabs); Save only when pass; Active/Archived on save
 
 **Show Overall Data**
 
