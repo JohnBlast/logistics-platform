@@ -160,7 +160,7 @@ export function ProfilesList() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded shadow-md-4 max-w-md">
             <p className="text-[rgba(0,0,0,0.87)]">
-              Delete profile &quot;{profiles.find((p) => p.id === deleteConfirm)?.name ?? 'Unknown'}&quot;? This cannot be undone.
+              Delete profile &quot;{profiles.find((p: Profile) => p.id === deleteConfirm)?.name ?? 'Unknown'}&quot;? This cannot be undone.
             </p>
             <div className="flex gap-3 mt-6 justify-end">
               <button

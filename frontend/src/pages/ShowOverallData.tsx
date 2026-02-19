@@ -19,7 +19,7 @@ export function ShowOverallData() {
     api.profiles.list().then(setProfiles).finally(() => setLoading(false))
   }, [])
 
-  const hasActive = profiles.some((p) => p.status === 'active')
+  const hasActive = profiles.some((p: { status: string }) => p.status === 'active')
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -125,7 +125,7 @@ export function ShowOverallData() {
               </tr>
             </thead>
             <tbody>
-              {flatRows.slice(0, 50).map((row, i) => (
+              {flatRows.slice(0, 50).map((row: Record<string, unknown>, i: number) => (
                 <tr key={i} className="border-t">
                   {headers.map((h) => (
                     <td key={h} className="px-3 py-1">
