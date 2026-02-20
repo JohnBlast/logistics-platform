@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api, type Profile } from '../services/api'
+import { getRequiredFromSchema } from '../utils/schemaUtils'
 import { Ingestion } from '../components/Ingestion'
 import { Mapping } from '../components/Mapping'
 import { EnumMapping } from '../components/EnumMapping'
@@ -18,20 +19,6 @@ const STEP_LABELS: Record<Step, string> = {
   joins: 'Joins',
   filtering: 'Filtering',
   validation: 'Validation',
-}
-
-const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
-function getRequiredFromSchema(entities: { fields: { name: string; required?: boolean }[] }[] | null, key: string): string[] {
-  if (!entities?.length) return []
-  const indices = SCHEMA_KEYS[key] || []
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const i of indices) {
-    for (const f of entities[i]?.fields || []) {
-      if (f.required && !seen.has(f.name)) { seen.add(f.name); out.push(f.name) }
-    }
-  }
-  return out
 }
 
 function allRequiredMapped(m: Record<string, string> | undefined, required: string[]): boolean {
@@ -124,6 +111,32 @@ export function ETLFlow() {
     api.schema.get().then((r) => setSchemaEntities((r as { entities: { fields: { name: string; required?: boolean }[] }[] }).entities ?? [])).catch(() => setSchemaEntities(null))
   }, [id])
 
+  // Auto-load sample data for view-only mode so the pipeline can be previewed
+  useEffect(() => {
+    if (!profile || profile.status === 'draft') return
+    if (sessionData.quote?.rows?.length && sessionData.load?.rows?.length && sessionData.driver_vehicle?.rows?.length) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const loadRes = await api.ingest.generate('load')
+        if (cancelled) return
+        const quoteRes = await api.ingest.generate('quote', { loadIds: loadRes.loadIds })
+        if (cancelled) return
+        const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
+        if (cancelled) return
+        const mergedLoadRows = dvRes.updatedLoadRows ?? loadRes.rows
+        setSessionData({
+          load: { headers: loadRes.headers, rows: mergedLoadRows, loadIds: loadRes.loadIds },
+          quote: { headers: quoteRes.headers, rows: quoteRes.rows },
+          driver_vehicle: { headers: dvRes.headers, rows: dvRes.rows },
+        })
+      } catch {
+        if (!cancelled) setError('Could not load sample data for preview.')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [profile?.id, profile?.status])
+
   const handleSave = async () => {
     if (!profile?.id || !sessionData.quote || !sessionData.load || !sessionData.driver_vehicle) return
     if (saveDisabledByReRun) return
@@ -148,17 +161,16 @@ export function ETLFlow() {
   }
 
   if (loading || !profile) return <div className="text-[rgba(0,0,0,0.6)]">Loading...</div>
-  if (profile.status !== 'draft') {
-    return (
-      <div className="p-6 bg-white rounded shadow-md-1">
-        <p className="text-[rgba(0,0,0,0.6)] mb-2">This profile is {profile.status}. Duplicate to edit.</p>
-        <Link to="/etl" className="text-primary hover:underline font-medium">← Back to profiles</Link>
-      </div>
-    )
-  }
+
+  const viewOnly = profile.status !== 'draft'
 
   return (
     <div>
+      {viewOnly && (
+        <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-sm">
+          View-only mode — this profile is {profile.status}. Duplicate to edit.
+        </div>
+      )}
       {profile.aiMode === 'claude' && claudeAvailable === false && (
         <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm">
           Claude AI is selected but the API key is not configured. Add <code className="bg-amber-100 px-1 rounded">ANTHROPIC_API_KEY</code> to your <code className="bg-amber-100 px-1 rounded">.env</code> at project root and restart the backend. Until then, AI features (mapping suggestions, joins, natural-language filters) will not work.
@@ -238,6 +250,7 @@ export function ETLFlow() {
           onNext={() => setStep('mapping')}
           canProceed={!!canProceedFromIngestion}
           aiMode={profile.aiMode}
+          viewOnly={viewOnly}
         />
       )}
 
@@ -249,6 +262,7 @@ export function ETLFlow() {
           onProfileUpdate={(updates) => setProfile((p) => (p ? { ...p, ...updates } : null))}
           onNext={() => setStep('enum_mapping')}
           onSaveProfile={api.profiles.update}
+          viewOnly={viewOnly}
         />
       )}
 
@@ -260,6 +274,7 @@ export function ETLFlow() {
           onNext={() => setStep('joins')}
           onSkip={() => handleSkip('enum_mapping')}
           onSaveProfile={api.profiles.update}
+          viewOnly={viewOnly}
         />
       )}
 
@@ -271,6 +286,7 @@ export function ETLFlow() {
           onNext={() => setStep('filtering')}
           onSkip={() => handleSkip('joins')}
           onSaveProfile={api.profiles.update}
+          viewOnly={viewOnly}
         />
       )}
 
@@ -282,6 +298,7 @@ export function ETLFlow() {
           onNext={() => setStep('validation')}
           onSkip={() => handleSkip('filtering')}
           onSaveProfile={api.profiles.update}
+          viewOnly={viewOnly}
         />
       )}
 
@@ -294,6 +311,7 @@ export function ETLFlow() {
             setLastValidFingerprint((s?.rowsSuccessful ?? 0) >= 1 ? computeFingerprint() : null)
           }
           saveDisabledByReRun={saveDisabledByReRun}
+          viewOnly={viewOnly}
         />
       )}
     </div>

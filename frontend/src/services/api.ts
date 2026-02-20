@@ -119,6 +119,9 @@ export const api = {
         dedupWarnings: string[]
         filterFieldWarnings: string[]
         flatRows: Record<string, unknown>[]
+        quoteRows: Record<string, unknown>[]
+        loadRows: Record<string, unknown>[]
+        vehicleDriverRows: Record<string, unknown>[]
         excludedByFilter?: Record<string, unknown>[]
         excludedByFilterCount?: number
         ruleEffects?: { ruleIndex: number; rule: string; type: string; before: number; after: number; excluded: number }[]
@@ -131,7 +134,7 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ profileId, sessionData, joinOnly: opts?.joinOnly, filtersOverride: opts?.filtersOverride, joinsOverride: opts?.joinsOverride }) }
       ),
     run: (sessionData: unknown) =>
-      fetchApi<{ rowsSuccessful: number; rowsDropped: number; flatRows: Record<string, unknown>[] }>(
+      fetchApi<{ rowsSuccessful: number; rowsDropped: number; flatRows: Record<string, unknown>[]; quoteRows: Record<string, unknown>[]; loadRows: Record<string, unknown>[]; vehicleDriverRows: Record<string, unknown>[] }>(
         '/api/pipeline/run',
         { method: 'POST', body: JSON.stringify({ sessionData }) }
       ),

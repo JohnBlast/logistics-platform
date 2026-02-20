@@ -15,6 +15,7 @@ interface IngestionProps {
   onNext: () => void
   canProceed: boolean
   aiMode?: 'claude' | 'mocked'
+  viewOnly?: boolean
 }
 
 const OBJECT_LABELS: Record<string, string> = {
@@ -25,26 +26,46 @@ const OBJECT_LABELS: Record<string, string> = {
 
 const OBJECT_ORDER: ('quote' | 'load' | 'driver_vehicle')[] = ['load', 'quote', 'driver_vehicle']
 
-export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }: IngestionProps) {
+export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode, viewOnly }: IngestionProps) {
   const [generating, setGenerating] = useState<'all' | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [activeSheet, setActiveSheet] = useState<'quote' | 'load' | 'driver_vehicle'>('quote')
 
-  const handleGenerateAll = async () => {
+  const handleAddAll = async () => {
     setGenerating('all')
+    setError(null)
     let state = { ...sessionData }
     try {
       const loadRes = await api.ingest.generate('load')
-      state = { ...state, load: { headers: loadRes.headers, rows: loadRes.rows, loadIds: loadRes.loadIds } }
+      const existingLoadRows = state.load?.rows ?? []
+      const existingLoadIds = state.load?.loadIds ?? existingLoadRows.map((r) => String((r as Record<string, unknown>)['Load Number'] ?? ''))
+      const newLoadIds = [...existingLoadIds, ...(loadRes.loadIds ?? [])]
+      const newLoadRows = [...existingLoadRows, ...loadRes.rows]
+
       const quoteRes = await api.ingest.generate('quote', { loadIds: loadRes.loadIds })
-      state = { ...state, quote: { headers: quoteRes.headers, rows: quoteRes.rows } }
-      const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
+      const existingQuoteRows = state.quote?.rows ?? []
       state = {
         ...state,
-        driver_vehicle: { headers: dvRes.headers, rows: dvRes.rows },
-        load: { ...state.load!, rows: dvRes.updatedLoadRows ?? loadRes.rows },
+        load: { headers: loadRes.headers, rows: newLoadRows, loadIds: newLoadIds },
+        quote: {
+          headers: quoteRes.headers,
+          rows: [...existingQuoteRows, ...quoteRes.rows],
+        },
+      }
+
+      const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
+      const updatedNewLoads = dvRes.updatedLoadRows ?? loadRes.rows
+      const mergedLoadRows = [...existingLoadRows, ...updatedNewLoads]
+      const existingDvRows = state.driver_vehicle?.rows ?? []
+      state = {
+        ...state,
+        driver_vehicle: { headers: dvRes.headers, rows: [...existingDvRows, ...dvRes.rows] },
+        load: { ...state.load!, rows: mergedLoadRows },
       }
       onUpdate(state)
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setGenerating(null)
     }
@@ -52,6 +73,7 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }:
 
   const handleUpload = async (objectType: 'quote' | 'load' | 'driver_vehicle', file: File) => {
     setUploading(objectType)
+    setError(null)
     try {
       const res = await api.ingest.upload(file)
       if (objectType === 'load') {
@@ -61,6 +83,8 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }:
       } else {
         onUpdate({ ...sessionData, driver_vehicle: { headers: res.headers, rows: res.rows } })
       }
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setUploading(null)
     }
@@ -76,16 +100,22 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }:
         Add data for each object: upload CSV/Excel or generate sample data. You’ll map columns to the target schema in the next step.
       </p>
 
-      <div className="flex flex-wrap gap-3 items-center">
-        <button
-          onClick={handleGenerateAll}
-          disabled={!!generating}
-          className="px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50 text-sm"
-        >
-          {generating ? 'Generating...' : 'Generate sample data'}
-        </button>
-        <DataModelPopover />
-      </div>
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">{error}</div>
+      )}
+
+      {!viewOnly && (
+        <div className="flex flex-wrap gap-3 items-center">
+          <button
+            onClick={handleAddAll}
+            disabled={!!generating}
+            className="px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50 text-sm"
+          >
+            {generating ? 'Adding...' : hasAnyData ? 'Add more (+100 quotes, +50 loads, +50 drivers)' : 'Add sample data'}
+          </button>
+          <DataModelPopover />
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border border-black/12 overflow-hidden">
         <table className="w-full">
@@ -94,7 +124,7 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }:
               <th className="px-4 py-3 font-medium">Object</th>
               <th className="px-4 py-3 font-medium w-24">Status</th>
               <th className="px-4 py-3 font-medium w-20">Rows</th>
-              <th className="px-4 py-3 font-medium">Action</th>
+              {!viewOnly && <th className="px-4 py-3 font-medium">Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -110,21 +140,23 @@ export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode }:
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-[rgba(0,0,0,0.6)]">{ready ? count : '—'}</td>
-                  <td className="px-4 py-3">
-                    <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/20 rounded-md text-sm font-medium cursor-pointer hover:bg-black/4">
-                      <span className={uploading === key ? 'opacity-60' : ''}>Upload</span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept=".csv,.xlsx,.xls"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0]
-                          if (f) handleUpload(key, f)
-                        }}
-                        disabled={!!uploading}
-                      />
-                    </label>
-                  </td>
+                  {!viewOnly && (
+                    <td className="px-4 py-3">
+                      <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/20 rounded-md text-sm font-medium cursor-pointer hover:bg-black/4">
+                        <span className={uploading === key ? 'opacity-60' : ''}>Upload</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".csv,.xlsx,.xls"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            if (f) handleUpload(key, f)
+                          }}
+                          disabled={!!uploading}
+                        />
+                      </label>
+                    </td>
+                  )}
                 </tr>
               )
             })}

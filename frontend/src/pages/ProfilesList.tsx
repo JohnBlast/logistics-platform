@@ -43,6 +43,7 @@ export function ProfilesList() {
     try {
       const p = await api.profiles.duplicate(id)
       setProfiles((prev) => [p, ...prev])
+      navigate(`/etl/profiles/${p.id}`)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -135,6 +136,14 @@ export function ProfilesList() {
                   className="px-4 py-2 bg-primary text-white rounded text-sm font-medium shadow-md-1 hover:bg-primary-dark"
                 >
                   Edit
+                </Link>
+              )}
+              {(p.status === 'active' || p.status === 'archive') && (
+                <Link
+                  to={`/etl/profiles/${p.id}`}
+                  className="px-4 py-2 border border-black/20 rounded text-sm font-medium hover:bg-black/4"
+                >
+                  View
                 </Link>
               )}
               <button

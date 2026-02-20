@@ -22,9 +22,10 @@ interface EnumMappingProps {
   onNext: () => void
   onSkip?: () => void
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
+  viewOnly?: boolean
 }
 
-export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile }: EnumMappingProps) {
+export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile, viewOnly }: EnumMappingProps) {
   const [entityEnumFields, setEntityEnumFields] = useState<Record<string, { field: string; validValues: string[] }[]>>({})
   const [applyingSuggested, setApplyingSuggested] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
@@ -176,16 +177,18 @@ export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, on
         Map your source values to our fixed schema enums (1:Many). For each target enum, multi-select which source values map to it. Unmapped values become null.
       </p>
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <button
-          onClick={applySuggested}
-          disabled={applyingSuggested}
-          className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
-        >
-          {applyingSuggested ? 'Applying...' : 'Apply suggested'}
-        </button>
-        {applyingSuggested && <AiWorkingIndicator message="AI suggesting enum mappings..." />}
-      </div>
+      {!viewOnly && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            onClick={applySuggested}
+            disabled={applyingSuggested}
+            className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
+          >
+            {applyingSuggested ? 'Applying...' : 'Apply suggested'}
+          </button>
+          {applyingSuggested && <AiWorkingIndicator message="AI suggesting enum mappings..." />}
+        </div>
+      )}
 
       {entities.map((objectType) => {
         const fields = entityEnumFields[objectType] || []
@@ -225,13 +228,25 @@ export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, on
                       return (
                         <div
                           key={targetValue}
-                          ref={(el) => { if (isFocused) focusedBlockRef.current = el; else if (focusedBlockRef.current === el) focusedBlockRef.current = null }}
+                          ref={(el) => { if (!viewOnly && isFocused) focusedBlockRef.current = el; else if (focusedBlockRef.current === el) focusedBlockRef.current = null }}
                           className="border border-black/12 rounded-lg p-3 bg-black/[0.02]"
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="font-medium text-primary shrink-0">→ {targetValue}</span>
                             <span className="text-xs text-[rgba(0,0,0,0.5)]">(our enum)</span>
                           </div>
+                          {viewOnly ? (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {alreadyMapped.length > 0 ? alreadyMapped.map((v) => (
+                                <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/15 text-primary text-xs rounded font-mono">
+                                  {v}
+                                </span>
+                              )) : (
+                                <p className="text-xs text-[rgba(0,0,0,0.5)]">No source values mapped</p>
+                              )}
+                            </div>
+                          ) : (
+                          <>
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="relative flex-1 min-w-[180px]">
                               <input
@@ -316,12 +331,14 @@ export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, on
                                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/15 text-primary text-xs rounded font-mono"
                               >
                                 {v}
-                                <button type="button" onClick={() => removeMapped(v)} className="hover:text-red-600" aria-label="Remove">×</button>
+                                {!viewOnly && <button type="button" onClick={() => removeMapped(v)} className="hover:text-red-600" aria-label="Remove">×</button>}
                               </span>
                             ))}
                           </div>
                           {alreadyMapped.length === 0 && (
                             <p className="text-xs text-[rgba(0,0,0,0.5)] mt-1">No source values mapped yet</p>
+                          )}
+                          </>
                           )}
                         </div>
                       )
@@ -338,17 +355,19 @@ export function EnumMapping({ sessionData, profile, onUpdate, onNext, onSkip, on
       })}
 
       <div className="flex justify-end gap-2">
-        {onSkip && (
+        {!viewOnly && onSkip && (
           <button onClick={onSkip} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 text-[rgba(0,0,0,0.6)]">
             Skip
           </button>
         )}
-        <button onClick={saveEnumMappings} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
-          Save enum mappings
-        </button>
+        {!viewOnly && (
+          <button onClick={saveEnumMappings} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
+            Save enum mappings
+          </button>
+        )}
         <button
           onClick={async () => {
-            await saveEnumMappings()
+            if (!viewOnly) await saveEnumMappings()
             onNext()
           }}
           className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark"

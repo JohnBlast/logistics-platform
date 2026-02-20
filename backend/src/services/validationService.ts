@@ -4,7 +4,6 @@ import { runJoinsWithSteps } from './joinService.js'
 import { applyFilters, applyFiltersWithRuleEffects, validateFilterFields } from './filterService.js'
 import { validateEnumsInRows } from './enumValidation.js'
 import { applyEnumMappings } from './enumMappingService.js'
-
 export interface ValidationSummary {
   rowsSuccessful: number
   rowsDropped: number
@@ -12,6 +11,9 @@ export interface ValidationSummary {
   dedupWarnings: string[]
   filterFieldWarnings: string[]
   flatRows: Record<string, unknown>[]
+  quoteRows: Record<string, unknown>[]
+  loadRows: Record<string, unknown>[]
+  vehicleDriverRows: Record<string, unknown>[]
   excludedByFilter?: Record<string, unknown>[]
   excludedByFilterCount?: number
   ruleEffects?: { ruleIndex: number; rule: string; type: string; before: number; after: number; excluded: number }[]
@@ -38,6 +40,10 @@ function applyMappings(
   })
 }
 
+/**
+ * Runs the full ETL pipeline. Session data must be separate entity datasets (quote, load, driver_vehicle).
+ * No pre-joined data: the pipeline joins them internally.
+ */
 export function runValidation(
   profileId: string,
   sessionData: {
@@ -149,6 +155,9 @@ export function runValidation(
     dedupWarnings,
     filterFieldWarnings,
     flatRows: flat,
+    quoteRows,
+    loadRows,
+    vehicleDriverRows: dvRows,
     excludedByFilter: excludedByFilter.length > 0 ? excludedByFilter : undefined,
     excludedByFilterCount,
     ruleEffects: ruleEffects.length > 0 ? ruleEffects : undefined,

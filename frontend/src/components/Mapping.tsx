@@ -1,31 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, type Profile } from '../services/api'
+import { SCHEMA_KEYS, getFieldsFromSchema } from '../utils/schemaUtils'
 import { DataModelPopover } from './DataModelPopover'
 import { AiWorkingIndicator } from './AiWorkingIndicator'
-
-const SCHEMA_KEYS: Record<string, number[]> = { quote: [0], load: [1], driver_vehicle: [2, 3] }
-
-/** Derive all fields and required fields from schema entities */
-function getFieldsFromSchema(
-  schema: { entities: { fields: { name: string; required?: boolean }[] }[] } | null,
-  objectType: 'quote' | 'load' | 'driver_vehicle'
-): { all: string[]; required: string[] } {
-  if (!schema?.entities) return { all: [], required: [] }
-  const indices = SCHEMA_KEYS[objectType] || []
-  const all: string[] = []
-  const required: string[] = []
-  const seen = new Set<string>()
-  for (const i of indices) {
-    for (const f of schema.entities[i]?.fields || []) {
-      if (!seen.has(f.name)) {
-        seen.add(f.name)
-        all.push(f.name)
-        if (f.required) required.push(f.name)
-      }
-    }
-  }
-  return { all, required }
-}
 
 const FIELD_LABELS: Record<string, string> = {
   quote_id: 'Quote reference',
@@ -76,6 +53,7 @@ interface MappingProps {
   onProfileUpdate: (updates: Partial<Profile>) => void
   onNext: () => void
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
+  viewOnly?: boolean
 }
 
 export function Mapping({
@@ -85,6 +63,7 @@ export function Mapping({
   onProfileUpdate,
   onNext,
   onSaveProfile,
+  viewOnly,
 }: MappingProps) {
   const [suggestions, setSuggestions] = useState<Record<string, { targetField: string; sourceColumn: string; confidence: number }[]>>({})
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -212,23 +191,25 @@ export function Mapping({
       <p className="text-[rgba(0,0,0,0.6)]">Map source columns to target fields. Required fields must be mapped.</p>
       <p className="text-sm text-[rgba(0,0,0,0.6)]">{mappedCount}/{totalFields} fields mapped</p>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2 items-center">
-          <button
-            onClick={runSuggest}
-            disabled={loading}
-            className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
-          >
-            {loading ? 'Suggesting...' : 'Suggest mapping'}
-          </button>
-          {loading && <AiWorkingIndicator message="AI suggesting mappings..." />}
-        </div>
-        {suggestError && (
+      {!viewOnly && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <button
+              onClick={runSuggest}
+              disabled={loading}
+              className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
+            >
+              {loading ? 'Suggesting...' : 'Suggest mapping'}
+            </button>
+            {loading && <AiWorkingIndicator message="AI suggesting mappings..." />}
+          </div>
+          {suggestError && (
           <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
             {suggestError}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {dataMap.map(({ key, label, allFields, required, headers, mappings: m }) => {
         const sugs = suggestions[key] || []
@@ -268,7 +249,7 @@ export function Mapping({
             </button>
             {!isCollapsed && (
             <>
-            {errorSuggestions.length > 0 && (
+            {!viewOnly && errorSuggestions.length > 0 && (
               <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
                 {errorSuggestions.map(({ field, sourceColumn }) => (
                   <div key={field} className="flex items-center gap-2">
@@ -283,12 +264,14 @@ export function Mapping({
                 ))}
               </div>
             )}
-            <button
-              onClick={() => applySuggestions(key)}
-              className="mb-3 text-sm text-primary hover:underline font-medium"
-            >
-              Apply suggested
-            </button>
+            {!viewOnly && (
+              <button
+                onClick={() => applySuggestions(key)}
+                className="mb-3 text-sm text-primary hover:underline font-medium"
+              >
+                Apply suggested
+              </button>
+            )}
             <div className="space-y-3 border-t border-black/12 pt-3">
               <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-2 text-xs font-medium text-[rgba(0,0,0,0.6)] uppercase tracking-wide">
                 <span className="bg-primary/8 text-primary px-2 py-1 rounded">Data model (target)</span>
@@ -328,27 +311,33 @@ export function Mapping({
                     </div>
                     <span className="text-[rgba(0,0,0,0.38)]">→</span>
                     <div className="flex items-center gap-2">
-                    <select
-                      value={m[field] || ''}
-                      onChange={(e) => setMapping(key, field, e.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="">—</option>
-                      {opts.map((h) => (
-                        <option key={h} value={h}>
-                          {h}
-                        </option>
-                      ))}
-                    </select>
-                    {m[field] && (
-                      <button
-                        type="button"
-                        onClick={() => toggleLock(key, field)}
-                        className={`p-1 rounded ${locked[field] ? 'text-amber-600 bg-amber-100' : 'text-[rgba(0,0,0,0.38)] hover:text-[rgba(0,0,0,0.6)]'}`}
-                        title={locked[field] ? 'Unlock' : 'Lock mapping'}
-                      >
-                        {locked[field] ? '🔒' : '🔓'}
-                      </button>
+                    {viewOnly ? (
+                      <span className="text-[rgba(0,0,0,0.87)]">{m[field] || '—'}</span>
+                    ) : (
+                      <>
+                        <select
+                          value={m[field] || ''}
+                          onChange={(e) => setMapping(key, field, e.target.value)}
+                          className={inputClass}
+                        >
+                          <option value="">—</option>
+                          {opts.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                        {m[field] && (
+                          <button
+                            type="button"
+                            onClick={() => toggleLock(key, field)}
+                            className={`p-1 rounded ${locked[field] ? 'text-amber-600 bg-amber-100' : 'text-[rgba(0,0,0,0.38)] hover:text-[rgba(0,0,0,0.6)]'}`}
+                            title={locked[field] ? 'Unlock' : 'Lock mapping'}
+                          >
+                            {locked[field] ? '🔒' : '🔓'}
+                          </button>
+                        )}
+                      </>
                     )}
                     </div>
                   </div>
@@ -362,12 +351,14 @@ export function Mapping({
       })}
 
       <div className="flex justify-end gap-3">
-        <button onClick={saveMappings} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
-          Save mappings
-        </button>
+        {!viewOnly && (
+          <button onClick={saveMappings} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
+            Save mappings
+          </button>
+        )}
         <button
           onClick={async () => {
-            await saveMappings()
+            if (!viewOnly) await saveMappings()
             onNext()
           }}
           disabled={!allRequiredMet}

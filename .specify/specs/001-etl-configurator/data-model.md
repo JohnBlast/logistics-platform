@@ -1,6 +1,6 @@
 # Data Model – 001 ETL Configurator
 
-Target schema for the logistics platform ETL.
+Target schema for the logistics platform ETL. **Platform canonical:** This schema conforms to the platform data model (`.specify/platform-data-model.md`), which is the single source of truth for all products.
 
 ## Domain Entities
 
@@ -37,7 +37,18 @@ Target schema for the logistics platform ETL.
 Quote ──(load_id)──► Load ──(allocated_vehicle_id OR driver_id)──► Driver+Vehicle
 ```
 
-**Result:** One flat wide row = Quote + Load + Vehicle + Driver
+## Pipeline Output (Four Data Objects)
+
+| Output | Description |
+|--------|-------------|
+| **Flat** | Connected rows only—Quote + Load + Vehicle+Driver that successfully joined |
+| **Quote** | Full quote dataset (all quotes; includes those not in flat) |
+| **Load** | Full load dataset (all loads) |
+| **Vehicle+Driver** | Full driver+vehicle dataset (all) |
+
+Flat = accepted/successful connections. Quote, Load, Vehicle+Driver = full entity datasets (nothing dropped from view).
+
+The user sees all four views in Joins, Filtering, Validation, and Show Overall Data.
 
 ## Source Structure
 

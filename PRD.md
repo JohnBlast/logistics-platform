@@ -9,7 +9,7 @@
 | # | Product | Golden Source PRD | Spec | Status |
 |---|---------|-------------------|------|--------|
 | **001** | ETL Configurator | [001-ETL-PRD.md](.specify/specs/001-etl-configurator/001-ETL-PRD.md) | [spec.md](.specify/specs/001-etl-configurator/spec.md) | Built & deployed |
-| **002** | Data Discovery | — | [placeholder](.specify/specs/002-data-discovery/README.md) | Planned |
+| **002** | Data Discovery | [002-prd-logistics-discovery .md](002-prd-logistics-discovery .md) | [placeholder](.specify/specs/002-data-discovery/README.md) | Planned |
 | **003** | Job Market | — | [placeholder](.specify/specs/003-job-market/README.md) | Planned |
 
 **When using spec-kit**: Reference the **Golden Source PRD** when running `/speckit.specify`, `/speckit.clarify`, or creating requirements. The spec is derived from the PRD; nothing should be lost in translation.

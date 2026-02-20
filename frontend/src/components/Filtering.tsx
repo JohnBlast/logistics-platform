@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api, type Profile } from '../services/api'
 import { DataModelPopover } from './DataModelPopover'
 import { DataTableWithSearch } from './DataTableWithSearch'
+import { PipelineDataTabs } from './PipelineDataTabs'
 import { AiWorkingIndicator } from './AiWorkingIndicator'
 
 export interface FilterRule {
@@ -21,9 +22,10 @@ interface FilteringProps {
   onNext: () => void
   onSkip?: () => void
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
+  viewOnly?: boolean
 }
 
-export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile }: FilteringProps) {
+export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile, viewOnly }: FilteringProps) {
   const [nlInput, setNlInput] = useState('')
   const [interpretError, setInterpretError] = useState('')
   const [interpreting, setInterpreting] = useState(false)
@@ -32,29 +34,39 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
     before: number
     after: number
     flatRows: Record<string, unknown>[]
+    quoteRows: Record<string, unknown>[]
+    loadRows: Record<string, unknown>[]
+    vehicleDriverRows: Record<string, unknown>[]
     excludedByFilter?: Record<string, unknown>[]
     filterFieldWarnings?: string[]
     ruleEffects?: { ruleIndex: number; rule: string; type: string; before: number; after: number; excluded: number }[]
   } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const filters = (profile.filters || []) as FilterRule[]
 
   const runPreview = async () => {
     if (!sessionData.quote || !sessionData.load || !sessionData.driver_vehicle || !profile.id) return
     setLoading(true)
+    setPreviewError(null)
     try {
       const beforeRes = await api.pipeline.validate(profile.id, sessionData, { joinOnly: true })
       const res = await api.pipeline.validate(profile.id, sessionData, { filtersOverride: filters })
+      setPreviewError(null)
       setPreview({
         before: beforeRes.rowsSuccessful,
         after: res.rowsSuccessful,
         flatRows: res.flatRows || [],
+        quoteRows: res.quoteRows || [],
+        loadRows: res.loadRows || [],
+        vehicleDriverRows: res.vehicleDriverRows || [],
         excludedByFilter: res.excludedByFilter || [],
         filterFieldWarnings: res.filterFieldWarnings,
         ruleEffects: res.ruleEffects,
       })
-    } catch {
+    } catch (e) {
       setPreview(null)
+      setPreviewError((e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -65,6 +77,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
       runPreview()
     } else {
       setPreview(null)
+      setPreviewError(null)
     }
   }, [
     sessionData.quote?.rows?.length,
@@ -127,6 +140,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         <h2 className="text-lg font-medium">Filtering</h2>
         <DataModelPopover />
       </div>
+      {!viewOnly && (
       <div className="bg-white p-6 rounded shadow-md-1">
         <h3 className="font-medium mb-3 text-[rgba(0,0,0,0.87)]">Add rule</h3>
         <p className="text-sm text-[rgba(0,0,0,0.6)] mb-3">
@@ -176,6 +190,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         </div>
         {interpretError && <p className="text-red-600 text-sm mt-1">{interpretError}</p>}
       </div>
+      )}
 
       {filters.length > 0 && (
         <div className="bg-white p-6 rounded shadow-md-1">
@@ -198,9 +213,11 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
                       {effect.excluded > 0 && ` (−${effect.excluded})`}
                     </span>
                   )}
-                  <button onClick={() => removeRule(i)} className="text-red-600 hover:underline ml-auto shrink-0">
-                    Remove
-                  </button>
+                  {!viewOnly && (
+                    <button onClick={() => removeRule(i)} className="text-red-600 hover:underline ml-auto shrink-0">
+                      Remove
+                    </button>
+                  )}
                 </li>
               )
             })}
@@ -208,6 +225,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         </div>
       )}
 
+      {!viewOnly && (
       <div className="flex gap-2">
         <button
           onClick={runPreview}
@@ -217,6 +235,11 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
           {loading ? 'Refreshing...' : 'Preview filters'}
         </button>
       </div>
+      )}
+
+      {previewError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">Preview failed: {previewError}</div>
+      )}
 
       {preview?.filterFieldWarnings?.length ? (
         <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
@@ -231,8 +254,8 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
           </div>
           <div className="bg-white p-6 rounded shadow-md-1">
             <h3 className="font-medium mb-2">After filters</h3>
-            <p className="text-lg font-semibold">{preview.after} rows included</p>
-            <p className="text-sm text-[rgba(0,0,0,0.6)]">{preview.before - preview.after} rows excluded</p>
+            <p className="text-lg font-semibold">{preview.after} combined rows</p>
+            <p className="text-sm text-[rgba(0,0,0,0.6)]">{preview.before - preview.after} filtered out</p>
             {preview.after === 0 && filters.length > 0 && (
               <p className="text-amber-600 text-sm mt-1">Filter drops all rows. Save will be blocked.</p>
             )}
@@ -242,38 +265,44 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
 
       {preview && preview.excludedByFilter && preview.excludedByFilter.length > 0 && (
         <div className="bg-white p-6 rounded shadow-md-1">
-          <h3 className="font-medium mb-3 text-red-700">Excluded by filters</h3>
+          <h3 className="font-medium mb-3 text-red-700">Filtered out</h3>
           <DataTableWithSearch
             data={preview.excludedByFilter}
             maxRows={50}
-            searchPlaceholder="Search excluded rows..."
+            searchPlaceholder="Search filtered-out rows..."
           />
         </div>
       )}
 
       {preview && (preview.flatRows?.length ?? 0) > 0 && (
         <div className="bg-white p-6 rounded shadow-md-1">
-          <h3 className="font-medium mb-3 text-green-700">Included rows</h3>
-          <DataTableWithSearch
-            data={preview.flatRows ?? []}
-            maxRows={50}
-            searchPlaceholder="Search included rows..."
+          <h3 className="font-medium mb-3 text-green-700">Combined rows</h3>
+          <PipelineDataTabs
+            outputs={{
+              flatRows: preview.flatRows ?? [],
+              quoteRows: preview.quoteRows ?? [],
+              loadRows: preview.loadRows ?? [],
+              vehicleDriverRows: preview.vehicleDriverRows ?? [],
+            }}
+            searchPlaceholder="Search combined rows..."
           />
         </div>
       )}
 
       <div className="flex justify-end gap-2">
-        {onSkip && (
+        {!viewOnly && onSkip && (
           <button onClick={onSkip} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
             Skip
           </button>
         )}
-        <button onClick={saveFilters} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
-          Save filters
-        </button>
+        {!viewOnly && (
+          <button onClick={saveFilters} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
+            Save filters
+          </button>
+        )}
         <button
           onClick={async () => {
-            await saveFilters()
+            if (!viewOnly) await saveFilters()
             onNext()
           }}
           className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark"

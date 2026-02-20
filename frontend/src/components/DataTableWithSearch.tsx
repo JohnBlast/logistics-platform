@@ -1,16 +1,57 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+
+const DEFAULT_COL_WIDTH = 120
+const MIN_COL_WIDTH = 60
+const MAX_COL_WIDTH = 400
 
 interface DataTableWithSearchProps {
   data: Record<string, unknown>[]
   maxRows?: number
+  pageSize?: number
   searchPlaceholder?: string
   /** Columns whose null/empty cells get warning styling */
   warningFields?: string[]
 }
 
-export function DataTableWithSearch({ data, maxRows = 50, searchPlaceholder = 'Search...', warningFields }: DataTableWithSearchProps) {
+export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchPlaceholder = 'Search...', warningFields }: DataTableWithSearchProps) {
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null)
+
   const cols = [...new Set(data.flatMap((r) => Object.keys(r)))].sort()
+
+  const getWidth = useCallback((col: string) => colWidths[col] ?? DEFAULT_COL_WIDTH, [colWidths])
+
+  useEffect(() => {
+    if (!resizing) return
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX
+      const newW = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, resizing.startW + delta))
+      setColWidths((w) => ({ ...w, [resizing.col]: newW }))
+    }
+    const onUp = () => setResizing(null)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [resizing])
+
+  useEffect(() => {
+    if (resizing) {
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    } else {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    return () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [resizing])
   const filtered = useMemo(() => {
     if (!search.trim()) return data
     const q = search.toLowerCase()
@@ -18,23 +59,82 @@ export function DataTableWithSearch({ data, maxRows = 50, searchPlaceholder = 'S
       Object.values(row).some((v) => String(v ?? '').toLowerCase().includes(q))
     )
   }, [data, search])
-  const displayRows = filtered.slice(0, maxRows)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const currentPage = Math.min(page, totalPages - 1)
+
+  useEffect(() => {
+    setPage(0)
+  }, [data])
+  const start = currentPage * pageSize
+  const displayRows = filtered.slice(start, start + pageSize)
+
+  const goToPage = (p: number) => {
+    setPage(Math.max(0, Math.min(p, totalPages - 1)))
+  }
 
   return (
     <div className="space-y-2">
-      <input
-        type="text"
-        placeholder={searchPlaceholder}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="border border-black/20 rounded px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-primary"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder={searchPlaceholder}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(0)
+          }}
+          className="border border-black/20 rounded px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        {filtered.length > pageSize && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 0}
+              className="px-3 py-1.5 text-sm border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-[rgba(0,0,0,0.87)]">
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= totalPages - 1}
+              className="px-3 py-1.5 text-sm border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto rounded border border-black/12">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm table-fixed">
+          <colgroup>
+            {cols.map((c) => (
+              <col key={c} style={{ width: getWidth(c), minWidth: getWidth(c) }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-black/4">
               {cols.map((c) => (
-                <th key={c} className="px-2 py-1.5 text-left font-medium">{c}</th>
+                <th
+                  key={c}
+                  className="relative px-2 py-1.5 text-left font-medium select-none"
+                  style={{ width: getWidth(c), minWidth: getWidth(c) }}
+                >
+                  <span className="truncate block">{c}</span>
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-primary/20 -mr-px"
+                    onMouseDown={(e) => {
+                    e.preventDefault()
+                    setResizing({ col: c, startX: e.clientX, startW: getWidth(c) })
+                  }}
+                  />
+                </th>
               ))}
             </tr>
           </thead>
@@ -47,7 +147,7 @@ export function DataTableWithSearch({ data, maxRows = 50, searchPlaceholder = 'S
                   return (
                     <td
                       key={c}
-                      className={`px-2 py-1 truncate max-w-[140px] ${isWarning ? 'bg-amber-50 text-amber-800' : ''}`}
+                      className={`px-2 py-1 truncate ${isWarning ? 'bg-amber-50 text-amber-800' : ''}`}
                       title={String(val ?? '')}
                     >
                       {String(val ?? '')}
@@ -60,7 +160,7 @@ export function DataTableWithSearch({ data, maxRows = 50, searchPlaceholder = 'S
         </table>
       </div>
       <p className="text-xs text-[rgba(0,0,0,0.6)]">
-        Showing {displayRows.length} of {filtered.length} rows
+        Showing {start + 1}–{start + displayRows.length} of {filtered.length} rows
         {search && ` (filtered from ${data.length})`}
       </p>
     </div>

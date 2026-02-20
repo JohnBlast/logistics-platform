@@ -5,9 +5,10 @@ import {
   VEHICLE_TYPES,
 } from '../models/schema.js'
 
-const QUOTE_COUNT = 100
-const LOAD_COUNT = 50
-const DRIVER_VEHICLE_COUNT = 50
+/** Default batch size per "Add" action (used by simulate pipeline and ingestion) */
+export const QUOTE_COUNT = 100
+export const LOAD_COUNT = 50
+export const DRIVER_VEHICLE_COUNT = 50
 
 const UK_CITIES = ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow', 'Liverpool', 'Bristol', 'Sheffield', 'Edinburgh', 'Cardiff', 'Belfast', 'Newcastle', 'Nottingham', 'Southampton', 'Brighton', 'Leicester', 'Coventry', 'Hull', 'Bradford', 'Stoke']
 const UK_CITIES_DIRTY = ['london', 'MANCHESTER', 'Birmigham', 'Leeds ', 'Glasow', 'Lverpool', 'Bristol', 'Sheffeild', 'Edinbrugh', 'CArdiff', 'Belfst', 'Newcstle', 'Nottingam', 'Southhampton', 'Bighton', 'Leicster', 'Coventy', ' Hul ', 'Bradfrord', 'Stokee']
@@ -96,7 +97,8 @@ function dirtyTownOrCity(pool: readonly string[], dirtyPool: readonly string[]):
 export function generateQuotes(loadIds: string[]): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = []
   for (let i = 0; i < QUOTE_COUNT; i++) {
-    const loadId = loadIds[i % loadIds.length]
+    // First half: quotes with valid load_id (will join → flat). Second half: orphan quotes (load_id not in loads → excluded from flat)
+    const loadId = i < loadIds.length ? loadIds[i] : randomUUID()
     const createdAt = randDatePast3Months()
     const status = pick(QUOTE_STATUS)
     const amount = Math.round(rand() * 5000 * 100) / 100

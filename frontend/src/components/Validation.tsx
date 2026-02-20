@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
 import { DataTableWithSearch } from './DataTableWithSearch'
+import { PipelineDataTabs } from './PipelineDataTabs'
 
 interface ValidationSummary {
   rowsSuccessful: number
@@ -9,6 +10,9 @@ interface ValidationSummary {
   dedupWarnings?: string[]
   filterFieldWarnings?: string[]
   flatRows: Record<string, unknown>[]
+  quoteRows: Record<string, unknown>[]
+  loadRows: Record<string, unknown>[]
+  vehicleDriverRows: Record<string, unknown>[]
   excludedByFilter?: Record<string, unknown>[]
   excludedByFilterCount?: number
   cellsWithWarnings?: number
@@ -26,9 +30,10 @@ interface ValidationProps {
   onSave: () => void
   onSummaryChange?: (summary: ValidationSummary | null) => void
   saveDisabledByReRun?: boolean
+  viewOnly?: boolean
 }
 
-export function Validation({ profileId, sessionData, onSave, onSummaryChange, saveDisabledByReRun }: ValidationProps) {
+export function Validation({ profileId, sessionData, onSave, onSummaryChange, saveDisabledByReRun, viewOnly }: ValidationProps) {
   const [summary, setSummary] = useState<ValidationSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -92,13 +97,15 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
           >
             {loading ? 'Running...' : 'Run validation'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!canSave || saving}
-            className="px-6 py-2.5 bg-green-600 text-white rounded font-medium shadow-md-1 hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save & Activate'}
-          </button>
+          {!viewOnly && (
+            <button
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className="px-6 py-2.5 bg-green-600 text-white rounded font-medium shadow-md-1 hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save & Activate'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -106,14 +113,14 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-green-50 border border-green-200 rounded p-4">
-              <p className="text-sm text-green-800 font-medium">Rows included</p>
+              <p className="text-sm text-green-800 font-medium">Combined rows</p>
               <p className="text-2xl font-semibold text-green-900">{summary.rowsSuccessful}</p>
-              <p className="text-xs text-green-700 mt-0.5">Final output</p>
+              <p className="text-xs text-green-700 mt-0.5">Quote + Load + Vehicle+Driver successfully joined</p>
             </div>
-            <div className="bg-red-50 border border-red-200 rounded p-4">
-              <p className="text-sm text-red-800 font-medium">Rows dropped</p>
-              <p className="text-2xl font-semibold text-red-900">{summary.rowsDropped}</p>
-              <p className="text-xs text-red-700 mt-0.5">By dedup, joins, or filters</p>
+            <div className="bg-black/6 border border-black/12 rounded p-4">
+              <p className="text-sm text-[rgba(0,0,0,0.87)] font-medium">Unconnected / filtered out</p>
+              <p className="text-2xl font-semibold text-[rgba(0,0,0,0.87)]">{summary.rowsDropped}</p>
+              <p className="text-xs text-[rgba(0,0,0,0.6)] mt-0.5">Quotes, loads, or vehicles with no matching join, or removed by filter rules</p>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded p-4">
               <p className="text-sm text-amber-800 font-medium">Null / empty cells</p>
@@ -178,21 +185,25 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
                   onClick={() => setActiveTab('included')}
                   className={`px-4 py-2 rounded font-medium text-sm ${activeTab === 'included' ? 'bg-primary text-white' : 'bg-black/4 text-[rgba(0,0,0,0.87)] hover:bg-black/8'}`}
                 >
-                  Included ({summary.rowsSuccessful})
+                  Combined rows ({summary.rowsSuccessful})
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('excluded')}
                   className={`px-4 py-2 rounded font-medium text-sm ${activeTab === 'excluded' ? 'bg-primary text-white' : 'bg-black/4 text-[rgba(0,0,0,0.87)] hover:bg-black/8'}`}
                 >
-                  Excluded by filters ({summary.excludedByFilterCount ?? summary.excludedByFilter?.length ?? 0})
+                  Filtered out ({summary.excludedByFilterCount ?? summary.excludedByFilter?.length ?? 0})
                 </button>
               </div>
               {activeTab === 'included' && summary.flatRows?.length > 0 && (
-                <DataTableWithSearch
-                  data={summary.flatRows}
-                  maxRows={50}
-                  searchPlaceholder="Search included rows..."
+                <PipelineDataTabs
+                  outputs={{
+                    flatRows: summary.flatRows,
+                    quoteRows: summary.quoteRows ?? [],
+                    loadRows: summary.loadRows ?? [],
+                    vehicleDriverRows: summary.vehicleDriverRows ?? [],
+                  }}
+                  searchPlaceholder="Search combined rows..."
                   warningFields={summary.fieldsWithWarnings}
                 />
               )}
@@ -200,13 +211,13 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
                 <DataTableWithSearch
                   data={summary.excludedByFilter ?? []}
                   maxRows={50}
-                  searchPlaceholder="Search excluded rows..."
+                  searchPlaceholder="Search filtered-out rows..."
                   warningFields={summary.fieldsWithWarnings}
                 />
               )}
               {activeTab === 'excluded' && (!summary.excludedByFilter || summary.excludedByFilter.length === 0) && (
                 <p className="text-[rgba(0,0,0,0.6)] text-sm py-4">
-                  No rows excluded by your filter rules. Rows dropped by joins (e.g. no matching load_id) or deduplication are counted in the summary box above but cannot be listed here.
+                  No rows removed by filter rules. Unconnected data (e.g. quotes with no matching load, loads with no vehicle) are counted above but cannot be listed here.
                 </p>
               )}
             </div>

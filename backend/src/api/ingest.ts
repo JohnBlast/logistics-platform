@@ -33,19 +33,23 @@ ingestRouter.post('/generate', (req, res) => {
 
   if (objectType === 'load') {
     const { rows, loadIds: ids } = generateLoads()
+    if (!rows.length) return res.status(500).json({ error: 'Generate returned no rows' })
     return res.json({ headers: Object.keys(rows[0]), rows, loadIds: ids })
   }
 
   if (objectType === 'quote') {
     const ids = loadIds && loadIds.length ? loadIds : generateLoads().loadIds
     const quotes = generateQuotes(ids)
+    if (!quotes.length) return res.status(500).json({ error: 'Generate returned no quotes' })
     return res.json({ headers: Object.keys(quotes[0]), rows: quotes })
   }
 
   if (objectType === 'driver_vehicle') {
     const lr = loadRows && loadRows.length ? loadRows : generateLoads().rows
+    if (!lr.length) return res.status(500).json({ error: 'Generate returned no load rows' })
     const linkLoadsToVehicles = req.body.linkLoadsToVehicles !== false
     const { driverVehicleRows, updatedLoadRows } = generateDriverVehicle(lr, linkLoadsToVehicles)
+    if (!driverVehicleRows.length) return res.status(500).json({ error: 'Generate returned no driver+vehicle rows' })
     return res.json({
       headers: Object.keys(driverVehicleRows[0]),
       rows: driverVehicleRows,

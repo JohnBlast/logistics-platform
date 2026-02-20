@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api, type Profile } from '../services/api'
 import { DataModelPopover } from './DataModelPopover'
-import { DataTableWithSearch } from './DataTableWithSearch'
+import { PipelineDataTabs } from './PipelineDataTabs'
 import { AiWorkingIndicator } from './AiWorkingIndicator'
 
 const DEFAULT_JOINS = [
@@ -20,14 +20,18 @@ interface JoinsProps {
   onNext: () => void
   onSkip?: () => void
   onSaveProfile: (id: string, data: Partial<Profile>) => Promise<Profile>
+  viewOnly?: boolean
 }
 
-export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile }: JoinsProps) {
+export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSaveProfile, viewOnly }: JoinsProps) {
   const [examplesExpanded, setExamplesExpanded] = useState(false)
   const [preview, setPreview] = useState<{
     before: { quote: number; load: number; dv: number }
     after: number
     flatRows: Record<string, unknown>[]
+    quoteRows: Record<string, unknown>[]
+    loadRows: Record<string, unknown>[]
+    vehicleDriverRows: Record<string, unknown>[]
     joinSteps?: { name: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
   } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -81,6 +85,9 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         },
         after: 0,
         flatRows: [],
+        quoteRows: [],
+        loadRows: [],
+        vehicleDriverRows: [],
       })
       setPreviewError(null)
       return
@@ -97,6 +104,9 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         },
         after: res.rowsSuccessful,
         flatRows: res.flatRows || [],
+        quoteRows: res.quoteRows || [],
+        loadRows: res.loadRows || [],
+        vehicleDriverRows: res.vehicleDriverRows || [],
         joinSteps: res.joinSteps,
       })
     } catch (e) {
@@ -121,6 +131,9 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
           },
           after: 0,
           flatRows: [],
+          quoteRows: [],
+          loadRows: [],
+          vehicleDriverRows: [],
         })
         setPreviewError(null)
       } else {
@@ -152,7 +165,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
         </p>
       )}
       <p className="text-sm text-[rgba(0,0,0,0.6)]">
-        Result: one row per <em>quote</em> that has a matching load and driver+vehicle. With 100 quotes and 50 loads (typically 2 quotes per load), you get ~100 rows. Quotes without loads are dropped.
+        Result: one row per <em>quote</em> that has a matching load and driver+vehicle. With multiple quotes per load, quotes without loads are dropped.
       </p>
 
       <div className="bg-white p-4 rounded shadow">
@@ -186,6 +199,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
             </div>
           )}
         </div>
+        {!viewOnly && (
         <div className="mb-2 flex gap-2 flex-wrap items-center">
           <input
             type="text"
@@ -204,6 +218,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
             </button>
           )}
         </div>
+        )}
         {nlResult && (
           <p className={`text-sm mb-2 ${nlResult.startsWith('Recognized') ? 'text-green-700' : 'text-red-700'}`}>
             {nlResult}
@@ -218,17 +233,19 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
               <span className="font-mono bg-black/8 px-2 py-0.5 rounded">{j.name}</span>
               <span className="text-[rgba(0,0,0,0.87)]">{j.leftEntity}.{j.leftKey} → {j.rightEntity}.{j.rightKey}</span>
               {j.fallbackKey && <span className="text-[rgba(0,0,0,0.6)]">(fallback: {j.fallbackKey})</span>}
-              <button
-                type="button"
-                onClick={() => {
-                  const next = joins.filter((_, idx) => idx !== i)
-                  onUpdate(next)
-                }}
-                className="ml-auto text-red-600 hover:text-red-800 hover:underline text-xs font-medium"
-                title="Remove join"
-              >
-                Remove
-              </button>
+              {!viewOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = joins.filter((_, idx) => idx !== i)
+                    onUpdate(next)
+                  }}
+                  className="ml-auto text-red-600 hover:text-red-800 hover:underline text-xs font-medium"
+                  title="Remove join"
+                >
+                  Remove
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -277,11 +294,15 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-black/12">
-            <h3 className="font-medium mb-3">Joined flat table</h3>
+            <h3 className="font-medium mb-3">Pipeline output</h3>
             {(preview.flatRows?.length ?? 0) > 0 ? (
-              <DataTableWithSearch
-                data={preview.flatRows ?? []}
-                maxRows={50}
+              <PipelineDataTabs
+                outputs={{
+                  flatRows: preview.flatRows ?? [],
+                  quoteRows: preview.quoteRows ?? [],
+                  loadRows: preview.loadRows ?? [],
+                  vehicleDriverRows: preview.vehicleDriverRows ?? [],
+                }}
                 searchPlaceholder="Search in table..."
               />
             ) : (
@@ -307,17 +328,19 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
       )}
 
       <div className="flex justify-end gap-2">
-        {onSkip && (
+        {!viewOnly && onSkip && (
           <button onClick={onSkip} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
             Skip
           </button>
         )}
-        <button onClick={saveJoins} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
-          Save joins
-        </button>
+        {!viewOnly && (
+          <button onClick={saveJoins} className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4">
+            Save joins
+          </button>
+        )}
         <button
           onClick={async () => {
-            await saveJoins()
+            if (!viewOnly) await saveJoins()
             onNext()
           }}
           className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark"

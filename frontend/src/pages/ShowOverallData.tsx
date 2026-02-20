@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
+import { PipelineDataTabs } from '../components/PipelineDataTabs'
 
 export function ShowOverallData() {
   const [profiles, setProfiles] = useState<{ status: string }[]>([])
@@ -10,49 +11,99 @@ export function ShowOverallData() {
     load: { headers: string[]; rows: Record<string, unknown>[] }
     driver_vehicle: { headers: string[]; rows: Record<string, unknown>[] }
   } | null>(null)
-  const [flatRows, setFlatRows] = useState<Record<string, unknown>[] | null>(null)
+  const [outputs, setOutputs] = useState<{
+    flatRows: Record<string, unknown>[]
+    quoteRows: Record<string, unknown>[]
+    loadRows: Record<string, unknown>[]
+    vehicleDriverRows: Record<string, unknown>[]
+  } | null>(null)
   const [runSummary, setRunSummary] = useState<{ rowsSuccessful: number; rowsDropped: number } | null>(null)
   const [generating, setGenerating] = useState(false)
   const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.profiles.list().then(setProfiles).finally(() => setLoading(false))
+    api.profiles.list().then(setProfiles).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
   }, [])
 
   const hasActive = profiles.some((p: { status: string }) => p.status === 'active')
 
-  const handleGenerate = async () => {
+  const handleAdd = async () => {
     setGenerating(true)
-    setFlatRows(null)
+    setError(null)
+    setOutputs(null)
     setRunSummary(null)
     try {
       const loadRes = await api.ingest.generate('load')
       const quoteRes = await api.ingest.generate('quote', { loadIds: loadRes.loadIds })
       const dvRes = await api.ingest.generate('driver_vehicle', { loadRows: loadRes.rows })
-      setSessionData({
+      const newData = {
         quote: { headers: quoteRes.headers, rows: quoteRes.rows },
         load: { headers: loadRes.headers, rows: dvRes.updatedLoadRows || loadRes.rows },
         driver_vehicle: { headers: dvRes.headers, rows: dvRes.rows },
-      })
+      }
+      if (sessionData) {
+        setSessionData({
+          quote: {
+            headers: newData.quote.headers,
+            rows: [...sessionData.quote.rows, ...newData.quote.rows],
+          },
+          load: {
+            headers: newData.load.headers,
+            rows: [...sessionData.load.rows, ...newData.load.rows],
+          },
+          driver_vehicle: {
+            headers: newData.driver_vehicle.headers,
+            rows: [...sessionData.driver_vehicle.rows, ...newData.driver_vehicle.rows],
+          },
+        })
+      } else {
+        setSessionData(newData)
+      }
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setGenerating(false)
     }
   }
 
+  const handleClear = () => {
+    setSessionData(null)
+    setOutputs(null)
+    setRunSummary(null)
+  }
+
   const handleRun = async () => {
     if (!sessionData) return
     setRunning(true)
+    setError(null)
     setRunSummary(null)
     try {
       const res = await api.pipeline.run(sessionData)
-      setFlatRows(res.flatRows ?? [])
+      setOutputs({
+        flatRows: res.flatRows ?? [],
+        quoteRows: res.quoteRows ?? [],
+        loadRows: res.loadRows ?? [],
+        vehicleDriverRows: res.vehicleDriverRows ?? [],
+      })
       setRunSummary({ rowsSuccessful: res.rowsSuccessful, rowsDropped: res.rowsDropped })
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setRunning(false)
     }
   }
 
   if (loading) return <div className="text-[rgba(0,0,0,0.6)]">Loading...</div>
+
+  if (error && !hasActive) {
+    return (
+      <div>
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
+        <Link to="/etl" className="text-primary hover:underline font-medium">← Back to profiles</Link>
+      </div>
+    )
+  }
 
   if (!hasActive) {
     return (
@@ -66,19 +117,21 @@ export function ShowOverallData() {
     )
   }
 
-  const headers = flatRows && flatRows.length > 0 ? Object.keys(flatRows[0]) : []
-  const hasRun = flatRows !== null
+  const hasRun = outputs !== null
 
   return (
     <div>
       <h1 className="text-2xl font-medium mb-4 text-[rgba(0,0,0,0.87)]">Show Overall Data & Simulate Pipeline</h1>
-      <div className="flex gap-2 mb-4">
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
+      )}
+      <div className="flex flex-wrap gap-2 mb-4">
         <button
-          onClick={handleGenerate}
+          onClick={handleAdd}
           disabled={generating}
           className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50"
         >
-          {generating ? 'Generating...' : 'Generate'}
+          {generating ? 'Adding...' : 'Add (+100 quotes, +50 loads, +50 drivers)'}
         </button>
         <button
           onClick={handleRun}
@@ -87,18 +140,32 @@ export function ShowOverallData() {
         >
           {running ? 'Running...' : 'Run Pipeline'}
         </button>
+        {sessionData && (
+          <button
+            onClick={handleClear}
+            disabled={running}
+            className="px-6 py-2.5 border border-black/20 rounded font-medium hover:bg-black/4 disabled:opacity-50"
+          >
+            Clear
+          </button>
+        )}
       </div>
+      {sessionData && (
+        <p className="text-sm text-[rgba(0,0,0,0.6)] mb-2">
+          {sessionData.quote.rows.length} quotes · {sessionData.load.rows.length} loads · {sessionData.driver_vehicle.rows.length} drivers
+        </p>
+      )}
       {runSummary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-5 rounded-lg shadow-md-1 border border-green-200 bg-green-50/50">
-            <p className="text-sm font-medium text-green-800">Accepted</p>
+            <p className="text-sm font-medium text-green-800">Combined rows</p>
             <p className="text-2xl font-semibold text-green-900">{runSummary.rowsSuccessful}</p>
-            <p className="text-xs text-green-700 mt-0.5">rows passed the pipeline</p>
+            <p className="text-xs text-green-700 mt-0.5">Quote + Load + Vehicle+Driver successfully joined</p>
           </div>
-          <div className="bg-white p-5 rounded-lg shadow-md-1 border border-amber-200 bg-amber-50/50">
-            <p className="text-sm font-medium text-amber-800">Dropped</p>
-            <p className="text-2xl font-semibold text-amber-900">{runSummary.rowsDropped}</p>
-            <p className="text-xs text-amber-700 mt-0.5">rows dropped by joins or filters</p>
+          <div className="bg-white p-5 rounded-lg shadow-md-1 border border-black/12 bg-black/[0.02]">
+            <p className="text-sm font-medium text-[rgba(0,0,0,0.87)]">Unconnected / filtered out</p>
+            <p className="text-2xl font-semibold text-[rgba(0,0,0,0.87)]">{runSummary.rowsDropped}</p>
+            <p className="text-xs text-[rgba(0,0,0,0.6)] mt-0.5">Quotes, loads, or vehicles with no matching join, or removed by filters</p>
           </div>
           <div className="bg-white p-5 rounded-lg shadow-md-1 border border-black/10 col-span-2 sm:col-span-1">
             <p className="text-sm font-medium text-[rgba(0,0,0,0.87)]">Total input</p>
@@ -107,38 +174,19 @@ export function ShowOverallData() {
           </div>
         </div>
       )}
-      {hasRun && flatRows.length === 0 && (
+      {hasRun && outputs && outputs.flatRows.length === 0 && (
         <div className="p-4 bg-black/4 border border-black/12 rounded text-[rgba(0,0,0,0.6)]">
-          Pipeline ran successfully. No rows in output. (All rows were dropped by joins or filters.)
+          Pipeline ran successfully. No combined rows. (All input rows were unconnected or removed by filters.)
         </div>
       )}
-      {flatRows && flatRows.length > 0 && (
-        <div className="overflow-x-auto border rounded">
-          <table className="w-full text-sm">
-            <thead className="bg-black/4">
-              <tr>
-                {headers.map((h) => (
-                  <th key={h} className="px-3 py-2 text-left font-medium">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {flatRows.slice(0, 50).map((row: Record<string, unknown>, i: number) => (
-                <tr key={i} className="border-t">
-                  {headers.map((h) => (
-                    <td key={h} className="px-3 py-1">
-                      {String(row[h] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {flatRows.length > 50 && (
-            <p className="p-2 text-sm text-[rgba(0,0,0,0.6)]">Showing 50 of {flatRows.length} rows</p>
-          )}
+      {outputs && outputs.flatRows.length > 0 && (
+        <div className="bg-white p-6 rounded-lg border border-black/12">
+          <h3 className="font-medium mb-3">Pipeline output</h3>
+          <PipelineDataTabs
+            outputs={outputs}
+            maxRows={50}
+            searchPlaceholder="Search in table..."
+          />
         </div>
       )}
     </div>

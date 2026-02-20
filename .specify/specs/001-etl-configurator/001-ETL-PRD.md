@@ -333,6 +333,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-8.1 | The system must apply filtering after joins, on the flat wide table. |
 | FR-8.2 | The system must allow the user to define inclusion and exclusion criteria in plain language (AI-assisted). |
 | FR-8.3 | The system must allow the user to create filter rules via natural language; AI must interpret and apply them; natural language must be supported for Filtering and Joins only, not Mapping. |
+| FR-8.4 | The system must interpret NL filter phrases according to the semantic taxonomy and interpretation contract defined in `nl-interpretation.md`; example phrasings therein (e.g. "remove London loads", "loads with capacity_kg and more than 1000kg") must produce correct structured rules. |
 
 ### 9. Pipeline Validation & Summary
 
@@ -341,7 +342,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-9.1 | The system must require the user to run a pipeline test before saving the ETL configuration. |
 | FR-9.2 | The system must run validation against the full configuration using the dirty data. |
 | FR-9.3 | The system must require at least one row to successfully complete the full pipeline (after joins and filtering) for validation to pass. |
-| FR-9.4 | The system must show in the UI: rows successful (included), rows dropped (by dedup, joins, or filters), and fields with warnings or nulls; optionally an Included/Excluded tabbed view to inspect successful rows vs rows excluded by filter rules. |
+| FR-9.4 | The system must show in the UI: rows successful (included), rows dropped (by dedup, joins, or filters), and fields with warnings or nulls; optionally an Included/Excluded tabbed view; and the ability to view data as Flat, Quote, Load, or Vehicle+Driver. |
 | FR-9.5 | The system must allow the user to save the ETL configuration only when validation passes. |
 | FR-9.6 | The system must, on save, make the new config Active and the previous Active config Archived. |
 
@@ -353,7 +354,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-10.2 | The system must require at least one Active ETL profile to access this page. |
 | FR-10.3 | The system must allow the user to generate dirty data and run it through the pipeline. |
 | FR-10.4 | The system must display the population of processed data flows in a table view. |
-| FR-10.5 | The system must display data as one flat wide table (post-join, post-filter). |
+| FR-10.5 | The system must display four data objects: (1) Combined Flat, (2) Quote, (3) Load, (4) Vehicle+Driver. The user can switch between views across Joins, Filtering, Validation, and Show Overall Data. |
 
 ### 11. Validation & Enum Handling
 
