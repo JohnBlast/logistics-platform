@@ -81,7 +81,10 @@ export function runJoinsWithSteps(
       if (loadId == null) continue
       const load = loadById.get(String(loadId))
       if (!load) continue
-      currentRows.push({ ...q, ...load })
+      const row = { ...q, ...load }
+      if (q.status != null) (row as Record<string, unknown>).quote_status = q.status
+      if (load.status != null) (row as Record<string, unknown>).load_status = load.status
+      currentRows.push(row)
     }
     steps.push({
       name: quoteLoadJoin.name,

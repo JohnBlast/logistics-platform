@@ -44,7 +44,13 @@ export function MainLayout({ children }: MainLayoutProps) {
             </div>
           )}
           <div className="mt-4 pt-4 border-t border-black/10">
-            <span className="block px-4 py-2 text-[rgba(0,0,0,0.38)] text-xs">Data Discovery (planned)</span>
+            <Link
+              data-testid="nav-discovery"
+              to="/discovery"
+              className={`block px-4 py-2.5 text-sm transition-colors ${loc.pathname === '/discovery' ? 'bg-[rgba(25,118,210,0.08)] text-primary font-medium' : 'text-[rgba(0,0,0,0.6)] hover:bg-black/4'}`}
+            >
+              Data Discovery
+            </Link>
             <span className="block px-4 py-2 text-[rgba(0,0,0,0.38)] text-xs">Job Market (planned)</span>
           </div>
         </nav>

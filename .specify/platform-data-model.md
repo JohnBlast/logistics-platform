@@ -130,3 +130,11 @@ Products that consume ETL output (e.g. Logistics Discovery) may use any of the f
 **Tenant identification (Fleet Operator):** `associated_fleet_id` on Quote identifies the Fleet Operator tenant. A Fleet Operator sees:
 - Quotes where `associated_fleet_id` = their tenant
 - Loads where the accepted quote's `associated_fleet_id` = their tenant
+
+---
+
+## Product Integration: ETL → Discovery
+
+**Data flow:** The Simulate Pipeline (Show Overall Data) page produces the pipeline output. When the user adds data and runs the pipeline, that output becomes the input for Logistics Discovery. Discovery derives its queryable views (`quotes`, `loads`, `loads_and_quotes`) from the flat table.
+
+**Contract:** ETL exposes `flatRows`, `quoteRows`, `loadRows`, `vehicleDriverRows` via the pipeline run API. Discovery consumes this structure. No separate export step in MVP.

@@ -33,7 +33,8 @@ export function DataModelPopover() {
       setLoading(true)
       api.schema
         .get()
-        .then((res) => setEntities(res.entities))
+        .then((res) => setEntities(res.entities ?? []))
+        .catch(() => setEntities([]))
         .finally(() => setLoading(false))
     }
   }, [open, entities.length])

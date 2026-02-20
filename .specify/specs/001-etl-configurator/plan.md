@@ -26,7 +26,7 @@ Build an AI-assisted ETL configuration tool for non-technical fleet operators. U
 | **Testing** | Vitest (unit + integration); React Testing Library |
 | **Target platform** | Web (desktop, 1280px min); Node 20+ |
 | **Project type** | Web application (frontend + backend) |
-| **Constraints** | 10MB max file size; configs persist; dirty data session-only |
+| **Constraints** | 10MB max file size; configs persist; dirty data session-only; max 2000 rows Add accumulation and pipeline output (Render free tier) |
 
 ---
 
@@ -268,6 +268,7 @@ logistics-platform/
 | Large file parse | 10MB limit enforced; stream if needed |
 | Excel format edge cases | First sheet only; reject unparseable; clear error |
 | Complex join logic | Fixed order; INNER only; user configures keys – keep simple |
+| Render free tier limits | Max 2000 rows in Add accumulation and pipeline output; truncate response if needed |
 
 ---
 

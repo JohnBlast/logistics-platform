@@ -2,7 +2,10 @@
   "name": "logistics-platform",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "npx -y concurrently \"npm run dev -w frontend\" \"npm run dev -w backend\"",
     "dev:frontend": "npm run dev -w frontend",
@@ -12,5 +15,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1"
   }
 }

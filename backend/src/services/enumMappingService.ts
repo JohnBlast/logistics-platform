@@ -34,7 +34,8 @@ export function applyEnumMappings(
       } else if (validValues.includes(str.trim().toLowerCase() as never)) {
         out[field] = str.trim().toLowerCase()
       } else {
-        out[field] = null // unmapped invalid -> null
+        const fuzzy = fuzzyMatchEnum(str, validValues as unknown as string[])
+        out[field] = fuzzy // null only if truly unmatchable
       }
     }
     return out
@@ -53,6 +54,40 @@ export function getEnumFieldsForEntity(objectType: string): { field: string; val
 /** Normalize for matching: lowercase, spaces/underscores interchangeable */
 function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, '_').replace(/_+/g, '_')
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+  return dp[m][n]
+}
+
+/** Fuzzy match a dirty value to the closest valid enum using normalize, partial, and edit distance. */
+function fuzzyMatchEnum(dirty: string, validValues: string[]): string | null {
+  const n = normalize(dirty)
+  for (const v of validValues) {
+    if (normalize(v) === n) return v
+  }
+  for (const v of validValues) {
+    if (n.includes(normalize(v)) || normalize(v).includes(n)) return v
+  }
+  let bestMatch: string | null = null
+  let bestDist = Infinity
+  for (const v of validValues) {
+    const d = levenshtein(n, normalize(v))
+    if (d < bestDist) { bestDist = d; bestMatch = v }
+  }
+  const threshold = Math.max(2, Math.floor(n.length * 0.3))
+  return bestDist <= threshold ? bestMatch : null
 }
 
 /**

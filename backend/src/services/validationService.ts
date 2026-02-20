@@ -56,6 +56,13 @@ export function runValidation(
   const profile = getProfile(profileId)
   if (!profile) throw new Error('Profile not found')
 
+  const q = sessionData.quote?.rows
+  const l = sessionData.load?.rows
+  const d = sessionData.driver_vehicle?.rows
+  if (!q || !l || !d) {
+    throw new Error('Invalid session data: quote, load, and driver_vehicle with rows are required')
+  }
+
   const mappings = (profile.mappings || {}) as Record<string, Record<string, string>>
   const filtersToUse = options?.filtersOverride ?? profile.filters ?? []
   const joinsToUse = options?.joinsOverride ?? profile.joins ?? []
@@ -63,9 +70,9 @@ export function runValidation(
   const loadMappings = mappings.load || {}
   const dvMappings = mappings.driver_vehicle || {}
 
-  let quoteRows = applyMappings(sessionData.quote.rows, quoteMappings)
-  let loadRows = applyMappings(sessionData.load.rows, loadMappings)
-  let dvRows = applyMappings(sessionData.driver_vehicle.rows, dvMappings)
+  let quoteRows = applyMappings(q, quoteMappings)
+  let loadRows = applyMappings(l, loadMappings)
+  let dvRows = applyMappings(d, dvMappings)
 
   const enumMappings = profile.enumMappings
   quoteRows = applyEnumMappings(quoteRows, 'quote', enumMappings)

@@ -94,23 +94,29 @@ function dirtyTownOrCity(pool: readonly string[], dirtyPool: readonly string[]):
   return rand() > 0.3 ? pick(pool) : pick(dirtyPool)
 }
 
+/** Shared fleet pool so Discovery tenant has many loads_and_quotes (e.g. "top 5 profitable routes") */
+const FLEET_IDS = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()]
+
 export function generateQuotes(loadIds: string[]): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = []
   for (let i = 0; i < QUOTE_COUNT; i++) {
-    // First half: quotes with valid load_id (will join → flat). Second half: orphan quotes (load_id not in loads → excluded from flat)
     const loadId = i < loadIds.length ? loadIds[i] : randomUUID()
     const createdAt = randDatePast3Months()
-    const status = pick(QUOTE_STATUS)
+    // Bias toward accepted for joinable quotes (first half) so Discovery has enough data
+    const willJoin = i < loadIds.length
+    const status = willJoin && rand() < 0.45 ? 'accepted' : pick(QUOTE_STATUS)
     const amount = Math.round(rand() * 5000 * 100) / 100
     const dist = rand() * 500
+    // ~70% use primary fleet so tenant has many accepted quotes for Discovery queries
+    const fleetId = rand() < 0.7 ? FLEET_IDS[0] : pick(FLEET_IDS)
     rows.push({
-      'Quote Ref': rand() > 0.92 ? randomUUID().slice(0, 20) + 'X' : randomUUID(), // occasional malformed UUID
+      'Quote Ref': rand() > 0.92 ? randomUUID().slice(0, 20) + 'X' : randomUUID(),
       'Load Reference': loadId,
       'Quoted Amount': rand() > 0.1 ? dirtyNumber(amount, true) as string : amount.toString().replace('.', ','),
       Status: rand() > 0.12 ? pickDirty(status) : pickDirty(pick(QUOTE_STATUS)),
       'Date Created': rand() > 0.25 ? dirtyDate(createdAt) : createdAt,
       'Distance (km)': rand() > 0.9 ? null : (rand() > 0.15 ? dirtyNumber(dist, true) : (dist.toFixed(2) + ' km')),
-      'Fleet ID': randomUUID(),
+      'Fleet ID': fleetId,
       'Quoter Name': ukName(),
       'Vehicle Type': rand() > 0.1 ? pick(VEHICLE_TYPES) : (pick(VEHICLE_TYPES).toUpperCase() + (rand() > 0.5 ? '' : '  ')),
       created_at: createdAt,
@@ -135,14 +141,26 @@ export function generateLoads(): { rows: Record<string, unknown>[]; loadIds: str
     const delivDateStr = delivDate.toISOString().split('T')[0]
     const collIso = collDate.toISOString()
     const delivIso = delivDate.toISOString()
+    // Guarantee London/Birmingham routes for Discovery queries (first 20% of loads)
+    let collCity: string, delivCity: string
+    if (i < LOAD_COUNT * 0.1) {
+      collCity = rand() > 0.3 ? 'London' : 'london'
+      delivCity = rand() > 0.3 ? 'Birmingham' : 'Birmigham'
+    } else if (i < LOAD_COUNT * 0.2) {
+      collCity = rand() > 0.3 ? 'Birmingham' : 'Birmigham'
+      delivCity = rand() > 0.3 ? 'London' : 'london'
+    } else {
+      collCity = dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY)
+      delivCity = dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY)
+    }
     rows.push({
       'Load Number': loadId,
       'Collection Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
-      'Collection City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
+      'Collection City': collCity,
       'Collection Time': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(collIso) : collIso) : null,
       'Collection Date': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(collDateStr) : collDateStr) : null,
       'Delivery Town': dirtyTownOrCity(UK_TOWNS, UK_TOWNS_DIRTY),
-      'Delivery City': dirtyTownOrCity(UK_CITIES, UK_CITIES_DIRTY),
+      'Delivery City': delivCity,
       'Delivery Time': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(delivIso) : delivIso) : null,
       'Delivery Date': rand() > 0.15 ? (rand() > 0.3 ? dirtyDate(delivDateStr) : delivDateStr) : null,
       'Distance km': rand() > 0.85 ? null : (rand() > 0.2 ? dirtyNumber(dist, true) : String(Math.round(dist)) + 'km'),
@@ -169,7 +187,7 @@ export function generateDriverVehicle(
     const vehicleId = randomUUID()
     const driverId = randomUUID()
     const createdAt = randDatePast3Months()
-    const vt = pick(vehicleTypes)
+    const vt = rand() < 0.35 ? 'small_van' : pick(vehicleTypes)
     const reg = `AB${String(10 + (i % 90)).padStart(2, '0')} ${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i + 7) % 26))} ${i % 10}${(i + 1) % 10}${(i + 2) % 10}`
     const first = pick(UK_FIRST_NAMES)
     driverVehicles.push({

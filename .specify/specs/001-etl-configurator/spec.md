@@ -53,6 +53,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | C-11 | Filter rule order | EC-4.4 | Conflicting rules (include X, exclude X) – which wins? | **Apply in defined order:** inclusion rules first, then exclusion. Last rule in each category wins for overlapping conditions. |
 | C-12 | Journey 8 – Mixed upload/generate | PRD Journey 8 | Explicit user story for "upload some, generate others"? | **Add** as User Story 7 (P2): Mixed Upload and Generate. |
 | C-13 | Journey 3 – Review data model before ETL | PRD Journey 3 | Dedicated story for Data Model Preview page (before starting)? | **Add** as User Story 8 (P2): Review Data Model Before Configuring. |
+| C-14 | Joins natural language | FR-7.5, nl-interpretation §6 | Full interpretation contract for NL joins (taxonomy, phrasings, Given/When/Then) not yet in nl-interpretation.md. | **Deferred.** Joins NL is optional. Claude mode: interpret freely; show parsed config for user to edit. Mocked mode: rule-based fallback for common patterns (e.g. "join quote to load on load_id"). Extend nl-interpretation.md with full Joins contract when Joins NL becomes priority. |
 
 ---
 
@@ -245,7 +246,7 @@ A user understands the target data model and mapping requirements before startin
 
 **Filtering**
 
-- FR-8.1 through FR-8.3: After joins on flat table; natural language inclusion/exclusion
+- FR-8.1 through FR-8.4: After joins on flat table; natural language inclusion/exclusion; NL interpretation per nl-interpretation.md (semantic taxonomy, example phrasings, interpretation contract)
 
 **Validation & Save**
 
@@ -314,6 +315,7 @@ A user understands the target data model and mapping requirements before startin
 ## Constraints
 
 - **File**: CSV/Excel only; 10MB max
+- **Row limits**: Max 2000 total rows in Simulate Pipeline Add accumulation (quote + load + driver_vehicle); max 2000 flat rows in pipeline run response. Keeps data within Render free tier limits. See `.specify/etl-discovery-integration.md`.
 - **Mapping**: 1:1 only; no concatenation, splitting, or derived fields
 - **Joins**: INNER only; fixed order Quote → Load → Driver+Vehicle
 - **Generated data**: Quotes = 100, Loads = 50, Driver+Vehicle = 50 (FR-4.3)

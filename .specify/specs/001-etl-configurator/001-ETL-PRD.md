@@ -89,18 +89,19 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 
 **Actor:** Operations manager or admin staff
 
-**Goal:** Generate fresh data and run it through the pipeline to see the resulting dataset.
+**Goal:** Generate fresh data and run it through the pipeline to see the resulting dataset. The output feeds Data Discovery for natural-language querying.
 
 **Steps:**
 
 1. Open the platform and select **ETL** from the sidebar.
 2. Ensure at least one **Active** ETL profile exists.
 3. Go to **Show Overall Data & Simulate Pipeline** (separate page within ETL).
-4. Click **Generate** to create dirty data for all three objects.
+4. Click **Add** to generate and accumulate dirty data (multiple clicks add more rows).
 5. Run the data through the pipeline.
-6. View the processed data in a table view as one flat wide table (post-join, post-filter).
+6. View the processed data in a table view (Combined Flat, Quote, Load, Vehicle+Driver).
+7. Navigate to **Data Discovery** (sidebar) to query this same data in natural language.
 
-**Outcome:** User sees the population of processed data flows and can verify the pipeline output.
+**Outcome:** User sees the pipeline output; that output is fed into Data Discovery for querying.
 
 ---
 
@@ -355,6 +356,7 @@ Operations managers or admin staff at fleet companies who are comfortable with E
 | FR-10.3 | The system must allow the user to generate dirty data and run it through the pipeline. |
 | FR-10.4 | The system must display the population of processed data flows in a table view. |
 | FR-10.5 | The system must display four data objects: (1) Combined Flat, (2) Quote, (3) Load, (4) Vehicle+Driver. The user can switch between views across Joins, Filtering, Validation, and Show Overall Data. |
+| FR-10.6 | The system must expose the pipeline output (flat rows, quote rows, load rows, vehicle+driver rows) so that the Data Discovery product can consume it. When the user adds data (Add button) and runs the pipeline, that output becomes the data source for Discovery. See Integration Contract below. |
 
 ### 11. Validation & Enum Handling
 

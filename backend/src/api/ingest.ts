@@ -21,7 +21,7 @@ ingestRouter.post('/upload', upload.single('file'), (req, res) => {
     if (e instanceof ParseError) {
       return res.status(400).json({ error: e.message })
     }
-    throw e
+    return res.status(500).json({ error: 'Failed to parse file' })
   }
 })
 

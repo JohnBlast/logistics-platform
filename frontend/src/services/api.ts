@@ -110,6 +110,49 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ rule, aiMode }) }
       ),
   },
+  discovery: {
+    getData: () =>
+      fetch(`${API_URL}/api/discovery/data`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null) as Promise<{
+        flatRows: Record<string, unknown>[]
+        quoteRows: Record<string, unknown>[]
+        loadRows: Record<string, unknown>[]
+        vehicleDriverRows: Record<string, unknown>[]
+        truncated?: boolean
+        totalRows?: number
+      } | null>,
+    clearData: () => fetchApi<void>(`/api/discovery/data`, { method: 'DELETE' }),
+  },
+  chat: async (
+    prompt: string,
+    opts?: {
+      conversationHistory?: { role: string; content: string }[]
+      previousTableInstruction?: Record<string, unknown>
+      dataColumns?: string[]
+    }
+  ): Promise<{ summary: string; title: string; tableInstruction?: Record<string, unknown> }> => {
+    const res = await fetch(`${API_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        conversationHistory: opts?.conversationHistory ?? [],
+        previousTableInstruction: opts?.previousTableInstruction,
+        dataColumns: opts?.dataColumns ?? [],
+      }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const code = body.code || (res.status === 429 ? 'RATE_LIMIT' : res.status === 503 ? 'CLAUDE_UNAVAILABLE' : 'GENERATION_FAILED')
+      const msg = body.error || body.message || res.statusText
+      const err = new Error(msg) as Error & { code?: string; summary?: string }
+      err.code = code
+      err.summary = body.summary || msg
+      throw err
+    }
+    return body
+  },
   pipeline: {
     validate: (profileId: string, sessionData: unknown, opts?: { joinOnly?: boolean; filtersOverride?: unknown[]; joinsOverride?: unknown[] }) =>
       fetchApi<{
@@ -134,7 +177,7 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ profileId, sessionData, joinOnly: opts?.joinOnly, filtersOverride: opts?.filtersOverride, joinsOverride: opts?.joinsOverride }) }
       ),
     run: (sessionData: unknown) =>
-      fetchApi<{ rowsSuccessful: number; rowsDropped: number; flatRows: Record<string, unknown>[]; quoteRows: Record<string, unknown>[]; loadRows: Record<string, unknown>[]; vehicleDriverRows: Record<string, unknown>[] }>(
+      fetchApi<{ rowsSuccessful: number; rowsDropped: number; flatRows: Record<string, unknown>[]; quoteRows: Record<string, unknown>[]; loadRows: Record<string, unknown>[]; vehicleDriverRows: Record<string, unknown>[]; truncated?: boolean; totalRows?: number }>(
         '/api/pipeline/run',
         { method: 'POST', body: JSON.stringify({ sessionData }) }
       ),

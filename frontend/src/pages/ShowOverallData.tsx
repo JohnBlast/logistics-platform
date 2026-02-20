@@ -2,22 +2,78 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
 import { PipelineDataTabs } from '../components/PipelineDataTabs'
+import { usePipelineOutput } from '../context/PipelineOutputContext'
+
+const MAX_TOTAL_ROWS = 2000
+const BATCH_ROWS = 100 + 50 + 50 // quote + load + driver_vehicle per Add
+const SIMULATE_STORAGE_KEY = 'simulate_pipeline_session'
+
+type SessionData = {
+  quote: { headers: string[]; rows: Record<string, unknown>[] }
+  load: { headers: string[]; rows: Record<string, unknown>[] }
+  driver_vehicle: { headers: string[]; rows: Record<string, unknown>[] }
+}
+
+type Outputs = {
+  flatRows: Record<string, unknown>[]
+  quoteRows: Record<string, unknown>[]
+  loadRows: Record<string, unknown>[]
+  vehicleDriverRows: Record<string, unknown>[]
+}
+
+function loadSimulateFromStorage(): {
+  sessionData: SessionData | null
+  outputs: Outputs | null
+  runSummary: { rowsSuccessful: number; rowsDropped: number } | null
+} {
+  try {
+    const raw = sessionStorage.getItem(SIMULATE_STORAGE_KEY)
+    if (!raw) return { sessionData: null, outputs: null, runSummary: null }
+    const parsed = JSON.parse(raw) as { sessionData?: unknown; outputs?: unknown; runSummary?: unknown }
+    const sd = parsed.sessionData as SessionData | undefined
+    const out = parsed.outputs as Outputs | undefined
+    const validSession =
+      sd?.quote?.rows && Array.isArray(sd.quote.rows) && sd?.load?.rows && sd?.driver_vehicle?.rows
+    const validOutputs = !out || (out && Array.isArray(out.flatRows))
+    if (!validSession && !validOutputs) return { sessionData: null, outputs: null, runSummary: null }
+    return {
+      sessionData: validSession ? sd : null,
+      outputs: validOutputs && out ? out : null,
+      runSummary: (parsed.runSummary as { rowsSuccessful: number; rowsDropped: number }) ?? null,
+    }
+  } catch {
+    return { sessionData: null, outputs: null, runSummary: null }
+  }
+}
+
+function saveSimulateToStorage(
+  sessionData: SessionData | null,
+  outputs: Outputs | null,
+  runSummary: { rowsSuccessful: number; rowsDropped: number } | null
+): void {
+  try {
+    if (!sessionData && !outputs) {
+      sessionStorage.removeItem(SIMULATE_STORAGE_KEY)
+    } else {
+      sessionStorage.setItem(
+        SIMULATE_STORAGE_KEY,
+        JSON.stringify({ sessionData, outputs, runSummary })
+      )
+    }
+  } catch {
+    /* ignore quota or parse errors */
+  }
+}
 
 export function ShowOverallData() {
+  const initialState = loadSimulateFromStorage()
   const [profiles, setProfiles] = useState<{ status: string }[]>([])
   const [loading, setLoading] = useState(true)
-  const [sessionData, setSessionData] = useState<{
-    quote: { headers: string[]; rows: Record<string, unknown>[] }
-    load: { headers: string[]; rows: Record<string, unknown>[] }
-    driver_vehicle: { headers: string[]; rows: Record<string, unknown>[] }
-  } | null>(null)
-  const [outputs, setOutputs] = useState<{
-    flatRows: Record<string, unknown>[]
-    quoteRows: Record<string, unknown>[]
-    loadRows: Record<string, unknown>[]
-    vehicleDriverRows: Record<string, unknown>[]
-  } | null>(null)
-  const [runSummary, setRunSummary] = useState<{ rowsSuccessful: number; rowsDropped: number } | null>(null)
+  const [sessionData, setSessionData] = useState<SessionData | null>(initialState.sessionData)
+  const [outputs, setOutputs] = useState<Outputs | null>(initialState.outputs)
+  const [runSummary, setRunSummary] = useState<{ rowsSuccessful: number; rowsDropped: number } | null>(
+    initialState.runSummary
+  )
   const [generating, setGenerating] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,9 +82,21 @@ export function ShowOverallData() {
     api.profiles.list().then(setProfiles).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    saveSimulateToStorage(sessionData, outputs, runSummary)
+  }, [sessionData, outputs, runSummary])
+
+  const { setPipelineOutput, clearPipelineOutput } = usePipelineOutput()
   const hasActive = profiles.some((p: { status: string }) => p.status === 'active')
 
+  const totalRows = sessionData
+    ? sessionData.quote.rows.length + sessionData.load.rows.length + sessionData.driver_vehicle.rows.length
+    : 0
+  const atRowLimit = totalRows >= MAX_TOTAL_ROWS
+  const wouldExceedLimit = totalRows + BATCH_ROWS > MAX_TOTAL_ROWS
+
   const handleAdd = async () => {
+    if (wouldExceedLimit) return
     setGenerating(true)
     setError(null)
     setOutputs(null)
@@ -71,6 +139,7 @@ export function ShowOverallData() {
     setSessionData(null)
     setOutputs(null)
     setRunSummary(null)
+    clearPipelineOutput()
   }
 
   const handleRun = async () => {
@@ -80,13 +149,17 @@ export function ShowOverallData() {
     setRunSummary(null)
     try {
       const res = await api.pipeline.run(sessionData)
-      setOutputs({
+      const data = {
         flatRows: res.flatRows ?? [],
         quoteRows: res.quoteRows ?? [],
         loadRows: res.loadRows ?? [],
         vehicleDriverRows: res.vehicleDriverRows ?? [],
-      })
+        truncated: res.truncated,
+        totalRows: res.totalRows,
+      }
+      setOutputs(data)
       setRunSummary({ rowsSuccessful: res.rowsSuccessful, rowsDropped: res.rowsDropped })
+      setPipelineOutput(data)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -127,13 +200,15 @@ export function ShowOverallData() {
       )}
       <div className="flex flex-wrap gap-2 mb-4">
         <button
+          data-testid="add-data"
           onClick={handleAdd}
-          disabled={generating}
+          disabled={generating || wouldExceedLimit}
           className="px-6 py-2.5 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark disabled:opacity-50"
         >
-          {generating ? 'Adding...' : 'Add (+100 quotes, +50 loads, +50 drivers)'}
+          {generating ? 'Adding...' : wouldExceedLimit ? 'Maximum 2000 rows. Clear to add more.' : 'Add (+100 quotes, +50 loads, +50 drivers)'}
         </button>
         <button
+          data-testid="run-pipeline"
           onClick={handleRun}
           disabled={!sessionData || running}
           className="px-6 py-2.5 bg-green-600 text-white rounded font-medium shadow-md-1 hover:bg-green-700 disabled:opacity-50"
@@ -151,9 +226,14 @@ export function ShowOverallData() {
         )}
       </div>
       {sessionData && (
-        <p className="text-sm text-[rgba(0,0,0,0.6)] mb-2">
-          {sessionData.quote.rows.length} quotes · {sessionData.load.rows.length} loads · {sessionData.driver_vehicle.rows.length} drivers
-        </p>
+        <>
+          <p className="text-sm text-[rgba(0,0,0,0.6)] mb-2">
+            {sessionData.quote.rows.length} quotes · {sessionData.load.rows.length} loads · {sessionData.driver_vehicle.rows.length} drivers
+          </p>
+          {atRowLimit && (
+            <p className="text-sm text-amber-600 mb-2">Maximum 2000 rows. Clear to add more.</p>
+          )}
+        </>
       )}
       {runSummary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">

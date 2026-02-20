@@ -282,7 +282,7 @@ function tryExcludeMultipleStatus(nl: string): InterpretedRule[] {
   const t = nl.toLowerCase().trim()
   const m = t.match(/^(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|rows?|quotes?)?\s*(?:with\s+)?(?:status\s+)?(.+?)(?:\s+loads?|\s+rows?|\s*)$/i)
   if (!m) return []
-  const statuses = ['cancelled', 'rejected', 'completed', 'pending', 'draft', 'posted', 'in_transit', 'accepted']
+  const statuses = STATUS_VALUES
   const words = m[1].split(/\s+(?:and|or|,)\s+/i).map((w) => w.trim().toLowerCase()).filter(Boolean)
   const matched = words.filter((w) => statuses.includes(w))
   if (matched.length < 2) return []

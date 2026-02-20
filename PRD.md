@@ -9,7 +9,9 @@
 | # | Product | Golden Source PRD | Spec | Status |
 |---|---------|-------------------|------|--------|
 | **001** | ETL Configurator | [001-ETL-PRD.md](.specify/specs/001-etl-configurator/001-ETL-PRD.md) | [spec.md](.specify/specs/001-etl-configurator/spec.md) | Built & deployed |
-| **002** | Data Discovery | [002-prd-logistics-discovery .md](002-prd-logistics-discovery .md) | [placeholder](.specify/specs/002-data-discovery/README.md) | Planned |
+| **002** | Logistics Discovery | [002-prd-logistics-discovery .md](002-prd-logistics-discovery .md) | [002-data-discovery](.specify/specs/002-data-discovery/README.md) | Planned |
+
+**ETL→Discovery integration:** Simulate Pipeline output (Add + Run Pipeline) feeds Discovery. No separate export in MVP.
 | **003** | Job Market | — | [placeholder](.specify/specs/003-job-market/README.md) | Planned |
 
 **When using spec-kit**: Reference the **Golden Source PRD** when running `/speckit.specify`, `/speckit.clarify`, or creating requirements. The spec is derived from the PRD; nothing should be lost in translation.
@@ -328,9 +330,18 @@ Full setup: [README.md](README.md#deployment-render)
 
 ## Spec-Kit Workflow
 
-1. **Constitution:** `.specify/memory/constitution.md`
-2. **Golden source (001):** `.specify/specs/001-etl-configurator/001-ETL-PRD.md`
-3. **Specify:** Use PRD as context → `.specify/specs/001-etl-configurator/spec.md`
-4. **Plan:** `/speckit.plan`
-5. **Tasks:** `/speckit.tasks`
-6. **Implement:** `/speckit.implement`
+**001 ETL Configurator (built):**
+1. Constitution: `.specify/memory/constitution.md`
+2. Golden source: `.specify/specs/001-etl-configurator/001-ETL-PRD.md`
+3. Specify → Plan → Tasks → Implement
+
+**002 Logistics Discovery (planned):**
+1. Set `SPECIFY_FEATURE=002-data-discovery`
+2. Golden source: `002-prd-logistics-discovery .md`
+3. Clarify (optional): `/speckit.clarify` for TableInstruction schema, tenant logic
+4. Specify: `/speckit.specify` with PRD context → `.specify/specs/002-data-discovery/spec.md`
+5. Plan: `/speckit.plan` with tech stack (same monorepo; integrate pipeline API)
+6. Tasks: `/speckit.tasks`
+7. Implement: `/speckit.implement`
+
+**Integration:** Discovery consumes Simulate Pipeline output. Ensure implementation shares pipeline run result (flatRows, quoteRows, loadRows, vehicleDriverRows) with Discovery.

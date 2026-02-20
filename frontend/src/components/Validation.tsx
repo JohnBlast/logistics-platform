@@ -37,6 +37,7 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
   const [summary, setSummary] = useState<ValidationSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [enumSuggestions, setEnumSuggestions] = useState<Record<string, string[]>>({})
   const [activeTab, setActiveTab] = useState<'included' | 'excluded'>('included')
 
@@ -48,6 +49,7 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
   const handleRun = async () => {
     if (!sessionData.quote || !sessionData.load || !sessionData.driver_vehicle) return
     setLoading(true)
+    setError(null)
     try {
       const res = await api.pipeline.validate(profileId, sessionData)
       setSummary(res)
@@ -65,6 +67,8 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
       } else {
         setEnumSuggestions({})
       }
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -108,6 +112,10 @@ export function Validation({ profileId, sessionData, onSave, onSummaryChange, sa
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">{error}</div>
+      )}
 
       {summary && (
         <>

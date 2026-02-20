@@ -105,7 +105,7 @@ export function ETLFlow() {
         setProfile(p)
         if (p.status !== 'draft') setStep('validation')
       })
-      .catch(setError)
+      .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
     api.health.ai().then((r) => setClaudeAvailable(r.claudeAvailable)).catch(() => setClaudeAvailable(false))
     api.schema.get().then((r) => setSchemaEntities((r as { entities: { fields: { name: string; required?: boolean }[] }[] }).entities ?? [])).catch(() => setSchemaEntities(null))

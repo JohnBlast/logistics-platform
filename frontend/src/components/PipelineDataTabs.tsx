@@ -29,28 +29,32 @@ interface PipelineDataTabsProps {
 export function PipelineDataTabs({ outputs, maxRows = 50, searchPlaceholder = 'Search...', warningFields, title }: PipelineDataTabsProps) {
   const [activeView, setActiveView] = useState<DataViewKey>('flat')
 
-  const rows = {
-    flat: outputs.flatRows,
-    quote: outputs.quoteRows,
-    load: outputs.loadRows,
-    vehicle_driver: outputs.vehicleDriverRows,
-  }[activeView]
+  const rows = (
+    {
+      flat: outputs.flatRows ?? [],
+      quote: outputs.quoteRows ?? [],
+      load: outputs.loadRows ?? [],
+      vehicle_driver: outputs.vehicleDriverRows ?? [],
+    } as Record<DataViewKey, Record<string, unknown>[]>
+  )[activeView] ?? []
 
-  const counts = {
-    flat: outputs.flatRows.length,
-    quote: outputs.quoteRows.length,
-    load: outputs.loadRows.length,
-    vehicle_driver: outputs.vehicleDriverRows.length,
+  const counts: Record<DataViewKey, number> = {
+    flat: (outputs.flatRows ?? []).length,
+    quote: (outputs.quoteRows ?? []).length,
+    load: (outputs.loadRows ?? []).length,
+    vehicle_driver: (outputs.vehicleDriverRows ?? []).length,
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center" role="tablist" aria-label="Data view tabs">
           {title && <h3 className="font-medium">{title}</h3>}
           {(Object.keys(VIEW_LABELS) as DataViewKey[]).map((key) => (
             <button
               key={key}
               type="button"
+              role="tab"
+              aria-selected={activeView === key}
               onClick={() => setActiveView(key)}
               className={`px-4 py-2 rounded font-medium text-sm transition-colors ${
                 activeView === key
@@ -62,7 +66,7 @@ export function PipelineDataTabs({ outputs, maxRows = 50, searchPlaceholder = 'S
             </button>
           ))}
         </div>
-      {rows.length > 0 ? (
+      {(rows?.length ?? 0) > 0 ? (
         <DataTableWithSearch
           data={rows}
           maxRows={maxRows}

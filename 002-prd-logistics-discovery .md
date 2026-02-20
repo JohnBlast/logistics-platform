@@ -36,14 +36,15 @@ The product uses an **LLM-to-Table Expression** pattern: the LLM translates natu
 
 The platform uses a **single data model** across all products. The ETL Configurator (001) transforms raw data into this schema. Logistics Discovery (002) consumes data that conforms to it. **Golden source:** `.specify/platform-data-model.md`
 
-### Data Source: ETL Pipeline Output
+### Data Source: Simulate Pipeline Output
 
-Discovery operates on data produced by the ETL Configurator:
+Discovery operates on data produced by the **Simulate Pipeline** (Show Overall Data) page:
 
-1. **ETL Configuration** — User configures profile (mappings, joins, filters) and runs the pipeline.
-2. **Pipeline Output** — ETL produces a flat wide table (Quote + Load + Driver + Vehicle joined).
-3. **Export for Discovery** — System persists or exposes the processed data for Discovery to consume.
-4. **Discovery Ingest** — Discovery loads the exported data and derives queryable views.
+1. **User adds data** — On Simulate Pipeline, user clicks **Add** to generate and accumulate rows (Quote, Load, Driver+Vehicle). Multiple clicks add more data.
+2. **User runs pipeline** — User clicks **Run Pipeline**. The Active ETL profile processes the data through mapping, joins, and filters.
+3. **Pipeline output** — ETL produces four outputs: Combined Flat, Quote, Load, Vehicle+Driver (per `.specify/platform-data-model.md`).
+4. **Discovery consumes** — Discovery loads the processed output from the latest run. No separate export step in MVP; the Run Pipeline output *is* the Discovery data source.
+5. **Same session** — User may add more data and re-run; Discovery reflects the latest pipeline output when the user navigates to it.
 
 ### Derivation of Discovery Views from ETL Flat Table
 
@@ -59,11 +60,11 @@ Discovery operates on data produced by the ETL Configurator:
 - **Fleet Operator sees:** Quotes where `associated_fleet_id` = their tenant; Loads where the accepted quote's `associated_fleet_id` = their tenant.
 - **Accepted quote:** Quote with `status = 'accepted'`. A Load is "awarded" to a Fleet when their quote is the accepted one.
 
-### Persistence & Deployment
+### Persistence & Deployment (MVP)
 
-- **ETL export:** Processed flat rows are persisted (e.g. API response, file, or database) when the user runs the pipeline and opts to "Use in Discovery" or equivalent.
-- **Discovery load:** Discovery fetches the persisted data at runtime (API, static file, or DB query).
-- **Fallback:** For standalone Discovery (no ETL run), mock data conforming to the platform schema may be used.
+- **Simulate Pipeline → Discovery:** When the user runs the pipeline on the Simulate Pipeline page, the output (flat rows + quote/load/vehicleDriver rows) is the data source for Discovery. Discovery receives this data via shared API or in-memory/session state (implementation choice).
+- **No separate export:** MVP does not require a distinct "Export for Discovery" or "Use in Discovery" action. Running the pipeline makes the data available to Discovery.
+- **Fallback:** If the user opens Discovery without running the pipeline, show empty state or mock data conforming to the platform schema.
 
 ---
 
@@ -202,20 +203,20 @@ An authenticated user belonging to a Fleet Operator Tenant.
 
 ---
 
-### Journey 8: Configure ETL and Open Discovery with Processed Data
+### Journey 8: Add Data in Simulate Pipeline and Query in Discovery
 
-**Intent:** User wants to analyze their own ETL-processed data in Discovery.
+**Intent:** User adds data via Simulate Pipeline; that data flows to Discovery for natural-language querying.
 
 **Flow:**
-1. User configures ETL (profile, mappings, joins, filters).
-2. User goes to Show Overall Data & Simulate Pipeline.
-3. User adds sample data (or uses uploaded data) and runs the pipeline.
-4. User selects "Open in Discovery" (or equivalent) or navigates to Discovery.
-5. System loads the processed flat rows from the latest ETL run (or from persisted export).
-6. Discovery derives `quotes`, `loads`, `loads_and_quotes` views and applies tenant filter.
+1. User configures ETL (profile, mappings, joins, filters) and saves (profile becomes Active).
+2. User goes to **Simulate Pipeline** (Show Overall Data).
+3. User clicks **Add** to generate data (Quote, Load, Driver+Vehicle). Multiple clicks accumulate more rows.
+4. User clicks **Run Pipeline**. The Active profile processes the data.
+5. User navigates to **Data Discovery** (sidebar). Discovery loads the pipeline output from the latest run.
+6. Discovery derives `quotes`, `loads`, `loads_and_quotes` views from the flat table and applies tenant filter.
 7. User queries their data in natural language as in Journey 1.
 
-**Outcome:** Discovery operates on the same data the user just processed in ETL.
+**Outcome:** Data added and run in Simulate Pipeline is immediately queryable in Discovery. Both products share the same pipeline output; no separate export step.
 
 ---
 
@@ -521,9 +522,9 @@ The query engine supports the following aggregation operations:
 - **loads_and_quotes** — Loads joined with accepted Quote (one row per load); filter flat where `quote.status = 'accepted'`
 
 ### Data Ingestion
-- **Primary:** ETL pipeline output (processed flat rows from Run Pipeline)
-- **Export:** Processed data persisted when user runs pipeline and opts to use in Discovery
-- **Fallback:** Mock data conforming to platform schema for standalone Discovery (e.g. JSON in `public/data/`)
+- **Primary:** Simulate Pipeline output — when user adds data and runs the pipeline, Discovery consumes that output. No separate export; the Run Pipeline result is the Discovery input.
+- **Contract:** Discovery expects four data objects: `flatRows`, `quoteRows`, `loadRows`, `vehicleDriverRows` (per platform data model). ETL provides these from `/api/pipeline/run` or equivalent.
+- **Fallback:** Mock data conforming to platform schema if user opens Discovery without running the pipeline.
 
 ### Rate Limiting
 - **10 requests per 30 minutes** per IP address
@@ -985,7 +986,188 @@ This subsection documents how the system supports groupings, conditions/filters,
 
 ---
 
-## 12. Assumptions
+## 12. Interpretation Contract (LLM → TableInstruction)
+
+> **Detailed specification:** `.specify/specs/002-data-discovery/nl-interpretation.md`
+
+This section defines the contract between natural language input and the structured `TableInstruction` output produced by the LLM. For any LLM-mediated feature, the interpretation contract is the primary interface specification.
+
+### 12.1 Semantic Taxonomy
+
+User prompts are classified into intent categories before the LLM generates a `TableInstruction`:
+
+| Category | Description | Example phrasings |
+|----------|-------------|-------------------|
+| Route profitability | Group by origin + destination, aggregate revenue | "top 5 profitable routes" |
+| Driver activity | Group by driver, count jobs | "most active drivers" |
+| Vehicle filter | Filter by vehicle type | "show all loads with small vans" |
+| City filter | Filter by collection or delivery city | "jobs from London" |
+| Date filter | Filter by date range or threshold | "jobs starting from 2025-01-15" |
+| Driver filter | Filter by driver name | "jobs by Alice Smith" |
+| Bidirectional route count | Count jobs between two cities (both directions) | "how many jobs between London and Birmingham" |
+| Revenue aggregation | Sum revenue globally or by group | "total revenue" |
+| Trend analysis | Time-series grouping with optional pct change | "monthly revenue trend" |
+| Raw listing | Show rows with optional sort/limit | "show my last 10 loads" |
+
+### 12.2 Field Resolution Rules
+
+The LLM receives actual column names from the user's data via `dataColumns` and MUST use these exact names. A field mapping guide translates user-facing concepts to canonical field names:
+
+| Concept | Canonical field | Fallback aliases |
+|---------|----------------|------------------|
+| Revenue / price / profitability | `quoted_price` | `Quoted Amount`, `price` |
+| Route origin (city) | `collection_city` | `Collection City` |
+| Route destination (city) | `delivery_city` | `Delivery City` |
+| Driver | `driver_name` | `name`, `Driver Name` |
+| Vehicle type | `vehicle_type` | `requested_vehicle_type` |
+| Collection date | `collection_date` | `Collection Date` |
+
+### 12.3 Prohibited Outputs
+
+| ID | Rule | Reason |
+|----|------|--------|
+| P-1 | Do NOT add `quote_status = accepted` on `loads_and_quotes` | View already pre-filters |
+| P-2 | Do NOT use a `route` field | No such field; use `groupBy` on location fields |
+| P-3 | Do NOT use `op` in filters | Filters use `operator`; `op` is for aggregations |
+| P-4 | Do NOT invent field names | Use only fields from `dataColumns` |
+| P-5 | Do NOT produce `tableInstruction` for ambiguous queries | Respond text-only |
+
+### 12.4 Acceptance Scenarios
+
+See `nl-interpretation.md` §4 for 10 Given/When/Then scenarios covering all supported query patterns (NL-D-01 through NL-D-10).
+
+---
+
+## 13. Data Flow Contract
+
+> **Detailed specification:** `.specify/specs/002-data-discovery/data-quality.md` §2
+
+This section defines the exact data shape at each boundary in the Discovery pipeline. Each boundary was previously undocumented, leading to debugging failures.
+
+### 13.1 Pipeline Boundaries
+
+```
+Generator → [Raw rows: dirty values, raw column names]
+    ↓
+ETL Mapping → [Canonical field names, values still dirty]
+    ↓
+Enum Mapping → [Status/vehicle normalized, numbers/dates still dirty]
+    ↓
+Join → [Flat table: quote + load + driver+vehicle; quote_status preserved independently]
+    ↓
+deriveViews → [Filtered: tenant match, quote_status=accepted, distinct by load_id]
+    ↓
+Query Engine → [Aliases resolved, numbers parsed, locations matched, aggregated]
+    ↓
+OutputTable → [All result columns rendered]
+```
+
+### 13.2 Column Name Mapping by Stage
+
+| Stage | Example transformation |
+|-------|----------------------|
+| Generator | `"Quoted Amount"` (raw) |
+| ETL Mapping | → `"quoted_price"` (canonical) |
+| Enum Mapping | Value: `"Acepted"` → `"accepted"` |
+| Join | `q.status` preserved as `quote_status` |
+| deriveViews | Filtered by `quote_status === "accepted"` |
+| Query Engine | `getRowValue(row, "quoted_price")` resolves aliases |
+
+### 13.3 Value Format at Each Stage
+
+| Stage | Number format | Date format | Status format |
+|-------|-------------|------------|--------------|
+| Generator output | `"781,68"`, `"1234.56 GBP"` | `"15/01/2025"`, ISO | `"Acepted"`, `"REJECTED"` |
+| After ETL Mapping | Same (not normalized) | Same | Same |
+| After Enum Mapping | Same | Same | `"accepted"`, `"rejected"` (normalized) |
+| After Join | Same | Same | Same |
+| After Query Engine | `781.68` (via `parseNum`) | Compared lexicographically | Matched case-insensitively |
+
+---
+
+## 14. Data Quality Rules
+
+> **Detailed specification:** `.specify/specs/002-data-discovery/data-quality.md`
+
+### 14.1 Input Variations the System Must Handle
+
+| Field type | Variations | Resolution strategy |
+|-----------|-----------|-------------------|
+| Status enums | Case variations, typos, extra whitespace | Fuzzy matching with Levenshtein distance (threshold: 30% of string length) |
+| City/town names | Case, typos (`Birmigham`), extra whitespace | `LOCATION_ALIASES` lookup in query engine |
+| Numbers | Comma-decimal (`781,68`), thousands commas, unit suffixes | `parseNum()` in query engine |
+| Dates | ISO, DD/MM/YYYY, MM-DD-YYYY, DD.MM.YYYY | ETL normalizes to ISO; query engine compares lexicographically |
+| Vehicle types | Case, trailing whitespace | Enum mapping normalizes |
+| Names | Case, typos, truncation | Exact match only (no fuzzy matching in MVP) |
+
+### 14.2 Field Alias Resolution
+
+When `flatRows` contain raw column names instead of canonical names, the query engine resolves aliases in this order:
+1. Exact match on canonical name
+2. Known alias lookup (e.g., `quoted_price` → `Quoted Amount`)
+3. Normalized comparison (lowercase, underscores)
+
+---
+
+## 15. System Prompt Contract
+
+> **Detailed specification:** `.specify/specs/002-data-discovery/prompt-spec.md`
+
+### 15.1 Prompt Structure
+
+The system prompt has four sections:
+1. **Role & Task** (static) — Defines Claude as a logistics analytics assistant
+2. **Schema Reference** (static) — `TABLE_INSTRUCTION_SCHEMA` with field lists and enum values
+3. **Data Column Context** (dynamic) — Injected from `Object.keys(flatRows[0])` per request
+4. **Rules & Examples** (static) — Explicit rules and few-shot examples
+
+### 15.2 Dynamic Injection Points
+
+| Point | Source | Purpose |
+|-------|--------|---------|
+| `dataColumns` | Frontend: `Object.keys(pipelineOutput.flatRows[0])` | Ensures LLM uses actual column names |
+| `previousTableInstruction` | Frontend conversation state | Follow-up query modification |
+| `conversationHistory` | Frontend conversation state | Multi-turn context |
+
+### 15.3 Versioning
+
+The system prompt is versioned. Changes must be reviewed like API changes because they can break all downstream query patterns. See `prompt-spec.md` §8 for version history and §9 for maintenance guidelines.
+
+---
+
+## 16. End-to-End Test Scenarios
+
+> **Detailed specification:** `.specify/specs/002-data-discovery/e2e-scenarios.md`
+
+### 16.1 Scenario Summary
+
+| ID | Query | Expected output shape | Key assertion |
+|----|-------|--------------------|---------------|
+| E2E-01 | "Top 5 profitable routes" | `[collection_city, delivery_city, total_revenue]` | `total_revenue > 0`, not NaN (handles comma-decimals) |
+| E2E-02 | "Most active drivers" | `[driver_name, job_count]` | Sorted desc, `job_count > 0` |
+| E2E-03 | "Jobs between London and Birmingham" | `[job_count]` | Single row, `job_count >= 1` (uses orFilters) |
+| E2E-04 | "Loads with small vans" | All flat columns | All rows: `vehicle_type === "small_van"` |
+| E2E-05 | "Jobs from London" | All flat columns | All rows: `collection_city` matches London |
+| E2E-06 | "Jobs starting from 2025-01-15" | All flat columns | All rows: `collection_date >= "2025-01-15"` |
+| E2E-07 | "Jobs by Alice Smith" | All flat columns | All rows: `driver_name === "Alice Smith"` |
+| E2E-08 | Raw column name handling | Aggregated | Aliases resolve; no NaN |
+| E2E-09 | Comma-decimal revenue | Aggregated | `parseNum` produces correct sums |
+| E2E-10 | Location alias matching | Count | Dirty city names matched via aliases |
+
+### 16.2 Boundary State Expectations
+
+Each scenario verifies the data at key pipeline boundaries:
+
+| Boundary | Assertion |
+|----------|-----------|
+| After Enum Mapping | All statuses are canonical (no dirty variants) |
+| After Join | `quote_status` exists independently of `load_status` |
+| After deriveViews | Only `quote_status === "accepted"` rows remain |
+| After Query Engine | Location aliases applied; `parseNum` handles comma-decimals; no NaN in aggregations |
+
+---
+
+## 17. Assumptions
 
 ### Platform Data Model
 - All entities and fields conform to `.specify/platform-data-model.md`

@@ -1,21 +1,26 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { PipelineOutputProvider } from './context/PipelineOutputContext'
 import { MainLayout } from './layouts/MainLayout'
 import { ProfilesList } from './pages/ProfilesList'
 import { ETLFlow } from './pages/ETLFlow'
 import { DataModelPreview } from './pages/DataModelPreview'
 import { ShowOverallData } from './pages/ShowOverallData'
+import { Discovery } from './pages/Discovery'
 
 function App() {
   return (
-    <MainLayout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/etl" replace />} />
-        <Route path="/etl" element={<ProfilesList />} />
-        <Route path="/etl/model" element={<DataModelPreview />} />
-        <Route path="/etl/profiles/:id" element={<ETLFlow />} />
-        <Route path="/etl/simulate" element={<ShowOverallData />} />
-      </Routes>
-    </MainLayout>
+    <PipelineOutputProvider>
+      <MainLayout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/etl" replace />} />
+          <Route path="/etl" element={<ProfilesList />} />
+          <Route path="/etl/model" element={<DataModelPreview />} />
+          <Route path="/etl/profiles/:id" element={<ETLFlow />} />
+          <Route path="/etl/simulate" element={<ShowOverallData />} />
+          <Route path="/discovery" element={<Discovery />} />
+        </Routes>
+      </MainLayout>
+    </PipelineOutputProvider>
   )
 }
 

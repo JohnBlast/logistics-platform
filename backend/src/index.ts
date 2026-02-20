@@ -8,6 +8,8 @@ import { pipelineRouter } from './api/pipeline.js'
 import { filtersRouter } from './api/filters.js'
 import { joinsRouter } from './api/joins.js'
 import { schemaRouter } from './api/schema.js'
+import { chatRouter } from './api/chat.js'
+import { discoveryRouter } from './api/discovery.js'
 import { isClaudeAvailable } from './services/claudeService.js'
 
 const PORT = process.env.PORT || 3001
@@ -23,6 +25,8 @@ app.use('/api/pipeline', pipelineRouter)
 app.use('/api/filters', filtersRouter)
 app.use('/api/joins', joinsRouter)
 app.use('/api/schema', schemaRouter)
+app.use('/api/chat', chatRouter)
+app.use('/api/discovery', discoveryRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })

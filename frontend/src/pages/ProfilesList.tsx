@@ -15,7 +15,7 @@ export function ProfilesList() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.profiles.list().then(setProfiles).catch(setError).finally(() => setLoading(false))
+    api.profiles.list().then(setProfiles).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
   }, [])
 
   const handleCreate = async () => {

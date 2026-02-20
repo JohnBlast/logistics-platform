@@ -78,6 +78,7 @@ export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchP
         <input
           type="text"
           placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
@@ -160,7 +161,7 @@ export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchP
         </table>
       </div>
       <p className="text-xs text-[rgba(0,0,0,0.6)]">
-        Showing {start + 1}–{start + displayRows.length} of {filtered.length} rows
+        Showing {filtered.length === 0 ? 0 : start + 1}–{start + displayRows.length} of {filtered.length} rows
         {search && ` (filtered from ${data.length})`}
       </p>
     </div>
