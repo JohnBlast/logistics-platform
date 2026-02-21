@@ -266,7 +266,7 @@ Return ONLY a JSON array, no other text.`
       if (single) return [{ structured: single, label: rule }]
       return []
     }
-    const parsed = JSON.parse(jsonStr) as { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion'; label?: string }[]
+    const parsed = JSON.parse(jsonStr) as { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion'; label?: string; orGroup?: number }[]
     if (!Array.isArray(parsed) || parsed.length === 0) {
       const single = await claudeInterpretFilter(rule)
       if (single) return [{ structured: single, label: rule }]
