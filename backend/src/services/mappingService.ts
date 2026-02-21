@@ -9,47 +9,12 @@ import {
   type ObjectType,
 } from '../models/schema.js'
 import { getTargetFieldsWithMetadata, type TargetFieldMetadata } from './schemaMetadata.js'
+import { MAPPING_ALIASES, MAPPING_NAME_SCORE_THRESHOLD } from '../config/mockedConfig.js'
 
 export interface MappingSuggestion {
   targetField: string
   sourceColumn: string
   confidence: number
-}
-
-// Fuzzy match: "Quote Ref" -> quote_id, "Load Number" -> load_id, etc.
-const ALIASES: Record<string, string[]> = {
-  quote_id: ['quote ref', 'quote id', 'quoteref'],
-  load_id: ['load number', 'load id', 'load reference'],
-  quoted_price: ['quoted amount', 'price', 'amount'],
-  status: ['status'],
-  date_created: ['date created', 'date created'],
-  created_at: ['created_at', 'created'],
-  updated_at: ['updated_at', 'updated'],
-  distance_km: ['distance', 'distance km', 'distance (km)'],
-  associated_fleet_id: ['fleet id', 'fleetid', 'associated fleet'],
-  fleet_quoter_name: ['quoter name', 'quoter', 'fleet quoter'],
-  requested_vehicle_type: ['vehicle type', 'requested vehicle', 'vehicle type requested'],
-  collection_town: ['collection town', 'collection town'],
-  collection_city: ['collection city', 'collection city'],
-  collection_time: ['collection time', 'collection time'],
-  collection_date: ['collection date', 'collection date'],
-  delivery_town: ['delivery town', 'delivery town'],
-  delivery_city: ['delivery city', 'delivery city'],
-  delivery_time: ['delivery time', 'delivery time'],
-  delivery_date: ['delivery date', 'delivery date'],
-  completion_date: ['completion date', 'completion'],
-  load_poster_name: ['poster name', 'load poster', 'poster'],
-  allocated_vehicle_id: ['vehicle id', 'vehicleid', 'allocated vehicle'],
-  driver_id: ['driver id', 'driverid'],
-  vehicle_id: ['vehicle id', 'vehicleid'],
-  name: ['driver name', 'name'],
-  fleet_id: ['fleet id', 'fleetid'],
-  vehicle_type: ['type', 'vehicle type'],
-  registration_number: ['registration', 'reg'],
-  number_of_items: ['number of items', 'items', 'item count'],
-  email: ['email'],
-  phone: ['phone'],
-  capacity_kg: ['capacity', 'capacity kg', 'capacity (kg)'],
 }
 
 const ENUM_BY_FIELD: Record<string, readonly string[]> = {
@@ -64,7 +29,7 @@ function scoreNameMatch(target: string, source: string): number {
   const s = source.toLowerCase().replace(/_/g, ' ')
   if (t === s) return 1
   if (s.includes(t) || t.includes(s)) return 0.9
-  const aliases = ALIASES[target]
+  const aliases = MAPPING_ALIASES[target]
   if (aliases?.some((a) => s.includes(a) || a.includes(s))) return 0.85
   const tWords = new Set(t.split(/\s+/))
   const sWords = new Set(s.split(/\s+/))
@@ -127,7 +92,7 @@ export function suggestMappingCandidates(
         bestCol = col
       }
     }
-    if (bestCol && bestNameScore > 0.3) {
+    if (bestCol && bestNameScore > MAPPING_NAME_SCORE_THRESHOLD) {
       candidates.push({ targetField: field.name, sourceColumn: bestCol })
     }
   }

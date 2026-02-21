@@ -1,4 +1,14 @@
 import type { FilterRule } from './profileStore.js'
+import {
+  FILTER_FIELD_ALIASES,
+  FILTER_NUMERIC_FIELDS,
+  FILTER_LOCATION_FIELDS,
+  FILTER_STATUS_VALUES,
+  FILTER_VEHICLE_TYPE_NAMES,
+  FILTER_UNIT_TO_FIELD,
+  getFlatTableColumnNames,
+  fuzzyColumnMatch,
+} from '../config/mockedConfig.js'
 
 /** Validate filter rules against flat table columns. Returns invalid field names (GR-5.4). */
 export function validateFilterFields(
@@ -237,76 +247,53 @@ function matchesRule(row: Record<string, unknown>, rule: FilterRule): boolean {
   }
 }
 
-/** Map natural-language field references to flat table column names */
-const FIELD_ALIASES: Record<string, string> = {
-  capacity_kg: 'capacity_kg',
-  'capacity kg': 'capacity_kg',
-  capacity: 'capacity_kg',
-  quoted_price: 'quoted_price',
-  'quoted price': 'quoted_price',
-  price: 'quoted_price',
-  distance_km: 'distance_km',
-  'distance km': 'distance_km',
-  distance: 'distance_km',
-  'collection city': 'collection_city',
-  collection_city: 'collection_city',
-  'collection town': 'collection_town',
-  'collection time': 'collection_time',
-  collection_time: 'collection_time',
-  'collection date': 'collection_date',
-  collection_date: 'collection_date',
-  'delivery city': 'delivery_city',
-  'delivery town': 'delivery_town',
-  'delivery time': 'delivery_time',
-  'delivery date': 'delivery_date',
-  'number of items': 'number_of_items',
-  number_of_items: 'number_of_items',
-  items: 'number_of_items',
-  email: 'email',
-  phone: 'phone',
-  'phone numbers': 'phone',
-  'phone number': 'phone',
-  'registration number': 'registration_number',
-  registration: 'registration_number',
-  'driver name': 'name',
-  'load poster name': 'load_poster_name',
-  status: 'status',
-  'vehicle type': 'vehicle_type',
-  'requested vehicle type': 'requested_vehicle_type',
-}
+type ResolveFieldFn = (userPhrase: string) => string | null
 
-function resolveField(userPhrase: string): string | null {
-  const normalized = userPhrase.trim().toLowerCase().replace(/\s+/g, ' ')
-  if (FIELD_ALIASES[normalized]) return FIELD_ALIASES[normalized]
-  const withUnderscores = normalized.replace(/\s+/g, '_')
-  if (FIELD_ALIASES[withUnderscores]) return FIELD_ALIASES[withUnderscores]
-  const entries = Object.entries(FIELD_ALIASES).sort((a, b) => b[0].length - a[0].length)
-  for (const [alias, field] of entries) {
-    const aliasNorm = alias.replace(/_/g, ' ')
-    if (normalized.includes(aliasNorm) || normalized.includes(alias)) return field
+function createResolveField(availableColumns: string[]): ResolveFieldFn {
+  return (userPhrase: string): string | null => {
+    const normalized = userPhrase.trim().toLowerCase().replace(/\s+/g, ' ')
+    const withUnderscores = normalized.replace(/\s+/g, '_')
+
+    if (FILTER_FIELD_ALIASES[normalized]) return FILTER_FIELD_ALIASES[normalized]
+    if (FILTER_FIELD_ALIASES[withUnderscores]) return FILTER_FIELD_ALIASES[withUnderscores]
+    const entries = Object.entries(FILTER_FIELD_ALIASES).sort((a, b) => b[0].length - a[0].length)
+    for (const [alias, field] of entries) {
+      const aliasNorm = alias.replace(/_/g, ' ')
+      if (normalized.includes(aliasNorm) || normalized.includes(alias)) return field
+    }
+
+    // Fuzzy match against actual column names (e.g. "Quoted Amount", "Collection Town")
+    let bestCol: string | null = null
+    let bestScore = 0.5
+    for (const col of availableColumns) {
+      const score = fuzzyColumnMatch(userPhrase, col)
+      if (score > bestScore) {
+        bestScore = score
+        bestCol = col
+      }
+    }
+    return bestCol
   }
-  return null
 }
-
-const NUMERIC_FIELDS = ['capacity_kg', 'quoted_price', 'distance_km', 'number_of_items']
-const UNIT_TO_FIELD: Record<string, string> = { kg: 'capacity_kg', km: 'distance_km', '£': 'quoted_price', gbp: 'quoted_price' }
 
 export interface InterpretedRule {
   structured: StructuredFilter
   label: string
 }
 
-const LOCATION_FIELDS = ['collection_town', 'collection_city', 'delivery_town', 'delivery_city']
-
 /**
  * Interpret natural language into one or more filter rules. Handles compound conditions
  * e.g. "loads with capacity_kg and with more than 1000kg" -> [is_not_null, > 1000]
+ * Uses flat table columns for data-driven field resolution (e.g. "Quoted Amount" -> quoted_price).
  */
-export function interpretFilterRules(nl: string): InterpretedRule[] {
-  const compound = tryCompoundWithAnd(nl)
+export function interpretFilterRules(nl: string, options?: { availableColumns?: string[] }): InterpretedRule[] {
+  const cols = options?.availableColumns ?? getFlatTableColumnNames()
+  const resolve = createResolveField(cols)
+
+  const compound = tryCompoundWithAnd(nl, resolve)
   if (compound.length >= 2) return compound
 
-  const compound2 = tryCompoundPatterns(nl)
+  const compound2 = tryCompoundPatterns(nl, resolve)
   if (compound2.length >= 2) return compound2
 
   const multiStatus = tryExcludeMultipleStatus(nl)
@@ -318,21 +305,17 @@ export function interpretFilterRules(nl: string): InterpretedRule[] {
   const includePlaceLoads = tryIncludePlaceLoads(nl)
   if (includePlaceLoads.length >= 1) return includePlaceLoads
 
-  const single = interpretFilterRule(nl)
+  const single = interpretFilterRule(nl, resolve)
   if (single) return [{ structured: single, label: nl }]
 
   return []
 }
 
-const STATUS_VALUES = ['cancelled', 'rejected', 'completed', 'pending', 'draft', 'posted', 'in_transit', 'accepted']
-const VEHICLE_TYPE_NAMES = ['small_van', 'medium_van', 'large_van', 'luton', 'rigid_7_5t', 'rigid_18t', 'rigid_26t', 'articulated',
-  'small van', 'medium van', 'large van', 'rigid']
-
 function isNonPlaceValue(val: string): boolean {
-  if (STATUS_VALUES.includes(val)) return true
-  if (val.split(/\s+and\s+/i).every((w) => STATUS_VALUES.includes(w.trim()))) return true
+  if (FILTER_STATUS_VALUES.includes(val)) return true
+  if (val.split(/\s+and\s+/i).every((w) => FILTER_STATUS_VALUES.includes(w.trim()))) return true
   const norm = val.replace(/\s+/g, '_').replace(/s$/, '')
-  return VEHICLE_TYPE_NAMES.some((vt) => norm === vt || val === vt || val === vt.replace(/_/g, ' '))
+  return FILTER_VEHICLE_TYPE_NAMES.some((vt: string) => norm === vt || val === vt || val === vt.replace(/_/g, ' '))
 }
 
 /** "remove London loads" / "exclude Manchester loads" -> exclude rows with place in ANY location field */
@@ -343,7 +326,7 @@ function tryRemovePlaceLoads(nl: string): InterpretedRule[] {
   const place = m[1].trim()
   if (!place || place.length < 2) return []
   if (isNonPlaceValue(place)) return []
-  return LOCATION_FIELDS.map((field) => ({
+  return [...FILTER_LOCATION_FIELDS].map((field) => ({
     structured: { field, op: 'contains' as const, value: place, type: 'exclusion' as const },
     label: `exclude ${field} contains ${place}`,
   }))
@@ -357,7 +340,7 @@ function tryIncludePlaceLoads(nl: string): InterpretedRule[] {
   const place = m[1].trim()
   if (!place || place.length < 2) return []
   if (isNonPlaceValue(place)) return []
-  return LOCATION_FIELDS.map((field) => ({
+  return [...FILTER_LOCATION_FIELDS].map((field) => ({
     structured: { field, op: 'contains' as const, value: place, type: 'inclusion' as const, orGroup: 1 },
     label: `${field} contains ${place}`,
   }))
@@ -368,7 +351,7 @@ function tryExcludeMultipleStatus(nl: string): InterpretedRule[] {
   const t = nl.toLowerCase().trim()
   const m = t.match(/^(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|rows?|quotes?)?\s*(?:with\s+)?(?:status\s+)?(.+?)(?:\s+loads?|\s+rows?|\s*)$/i)
   if (!m) return []
-  const statuses = STATUS_VALUES
+  const statuses = FILTER_STATUS_VALUES
   const words = m[1].split(/\s+(?:and|or|,)\s+/i).map((w) => w.trim().toLowerCase()).filter(Boolean)
   const matched = words.filter((w) => statuses.includes(w))
   if (matched.length < 2) return []
@@ -378,7 +361,7 @@ function tryExcludeMultipleStatus(nl: string): InterpretedRule[] {
   }))
 }
 
-function tryCompoundPatterns(nl: string): InterpretedRule[] {
+function tryCompoundPatterns(nl: string, resolve: ResolveFieldFn): InterpretedRule[] {
   const t = nl.toLowerCase().trim()
   const rules: InterpretedRule[] = []
 
@@ -392,17 +375,17 @@ function tryCompoundPatterns(nl: string): InterpretedRule[] {
     const p = part.trim()
     const fieldMatch = p.match(/with\s+(?:a\s+)?([a-z0-9_\s]+?)(?:\s+and|\s*$)/i) || p.match(/have\s+([a-z0-9_\s]+?)(?:\s+and|\s*$)/i)
     if (fieldMatch) {
-      const field = resolveField(fieldMatch[1])
-      if (field && NUMERIC_FIELDS.includes(field)) inferredField = field
+      const field = resolve(fieldMatch[1])
+      if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) inferredField = field
     }
   }
 
   for (const part of andParts) {
     const p = part.trim()
     const rawPhrase = p.replace(/with\s+(?:a\s+)?/i, '').split(/\s+(?:more|less|greater|over|under|above|below)\s+than/i)[0]?.trim() || ''
-    const field = resolveField(rawPhrase) || inferredField
+    const field = resolve(rawPhrase) || inferredField
 
-    if (field && NUMERIC_FIELDS.includes(field)) {
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       if (/with\s+(?:a\s+)?[a-z0-9_\s]+$/i.test(p) || /have\s+[a-z0-9_\s]+$/i.test(p)) {
         rules.push({ structured: { field, op: 'is_not_null', type: 'inclusion' }, label: `${field} present` })
       } else {
@@ -413,7 +396,7 @@ function tryCompoundPatterns(nl: string): InterpretedRule[] {
         const f = moreMatch || overMatch || lessMatch || underMatch
         if (f) {
           const num = parseFloat(f[1].replace(/,/g, ''))
-          const unitField = f[2] ? UNIT_TO_FIELD[f[2].toLowerCase()] : null
+          const unitField = f[2] ? FILTER_UNIT_TO_FIELD[f[2].toLowerCase()] : null
           const ruleField = unitField || field
           const op = (moreMatch || overMatch) ? '>' : '<'
           if (!Number.isNaN(num))
@@ -430,17 +413,16 @@ function tryCompoundPatterns(nl: string): InterpretedRule[] {
   return deduped.length >= 2 ? deduped : []
 }
 
-function tryCompoundWithAnd(nl: string): InterpretedRule[] {
+function tryCompoundWithAnd(nl: string, resolve: ResolveFieldFn): InterpretedRule[] {
   const t = nl.toLowerCase().trim()
-  const numFields = ['capacity_kg', 'quoted_price', 'distance_km', 'number_of_items']
 
   const m = t.match(/(?:want|see|show|include)\s+(?:only\s+)?(?:loads?|rows?)\s+with\s+([a-z0-9_\s]+?)\s+and\s+(?:with\s+)?(?:more\s+than|greater\s+than|over|above)\s+([0-9,.]+)\s*(kg|km)?/i)
   if (m) {
-    const field = resolveField(m[1].trim())
+    const field = resolve(m[1].trim())
     const numVal = parseFloat(m[2].replace(/,/g, ''))
     const unitField = m[3] ? (m[3].toLowerCase() === 'kg' ? 'capacity_kg' : 'distance_km') : field
     const ruleField = (unitField || field) as string
-    if (field && numFields.includes(ruleField) && !Number.isNaN(numVal)) {
+    if (field && FILTER_NUMERIC_FIELDS.includes(ruleField as never) && !Number.isNaN(numVal)) {
       return [
         { structured: { field: ruleField, op: 'is_not_null', type: 'inclusion' }, label: `${ruleField} present` },
         { structured: { field: ruleField, op: '>', value: numVal, type: 'inclusion' }, label: `${ruleField} > ${numVal}` },
@@ -450,11 +432,11 @@ function tryCompoundWithAnd(nl: string): InterpretedRule[] {
 
   const m2 = t.match(/(?:want|see|show|include)\s+(?:only\s+)?(?:loads?|rows?)\s+with\s+([a-z0-9_\s]+?)\s+and\s+(?:with\s+)?(?:less\s+than|under|below)\s+([0-9,.]+)\s*(kg|km)?/i)
   if (m2) {
-    const field = resolveField(m2[1].trim())
+    const field = resolve(m2[1].trim())
     const numVal = parseFloat(m2[2].replace(/,/g, ''))
     const unitField = m2[3] ? (m2[3].toLowerCase() === 'kg' ? 'capacity_kg' : 'distance_km') : field
     const ruleField = (unitField || field) as string
-    if (field && numFields.includes(ruleField) && !Number.isNaN(numVal)) {
+    if (field && FILTER_NUMERIC_FIELDS.includes(ruleField as never) && !Number.isNaN(numVal)) {
       return [
         { structured: { field: ruleField, op: 'is_not_null', type: 'inclusion' }, label: `${ruleField} present` },
         { structured: { field: ruleField, op: '<', value: numVal, type: 'inclusion' }, label: `${ruleField} < ${numVal}` },
@@ -465,11 +447,11 @@ function tryCompoundWithAnd(nl: string): InterpretedRule[] {
   // "with X and (at least|at most|no more than) N"
   const m3 = t.match(/(?:want|see|show|include)\s+(?:only\s+)?(?:loads?|rows?)\s+with\s+([a-z0-9_\s]+?)\s+and\s+(?:at\s+least|minimum|min)\s+([0-9,.]+)\s*(kg|km)?/i)
   if (m3) {
-    const field = resolveField(m3[1].trim())
+    const field = resolve(m3[1].trim())
     const numVal = parseFloat(m3[2].replace(/,/g, ''))
     const unitField = m3[3] ? (m3[3].toLowerCase() === 'kg' ? 'capacity_kg' : 'distance_km') : field
     const ruleField = (unitField || field) as string
-    if (field && numFields.includes(ruleField) && !Number.isNaN(numVal)) {
+    if (field && FILTER_NUMERIC_FIELDS.includes(ruleField as never) && !Number.isNaN(numVal)) {
       return [
         { structured: { field: ruleField, op: 'is_not_null', type: 'inclusion' }, label: `${ruleField} present` },
         { structured: { field: ruleField, op: '>=', value: numVal, type: 'inclusion' }, label: `${ruleField} >= ${numVal}` },
@@ -479,11 +461,11 @@ function tryCompoundWithAnd(nl: string): InterpretedRule[] {
 
   const m4 = t.match(/(?:want|see|show|include)\s+(?:only\s+)?(?:loads?|rows?)\s+with\s+([a-z0-9_\s]+?)\s+and\s+(?:at\s+most|no\s+more\s+than|maximum|max)\s+([0-9,.]+)\s*(kg|km)?/i)
   if (m4) {
-    const field = resolveField(m4[1].trim())
+    const field = resolve(m4[1].trim())
     const numVal = parseFloat(m4[2].replace(/,/g, ''))
     const unitField = m4[3] ? (m4[3].toLowerCase() === 'kg' ? 'capacity_kg' : 'distance_km') : field
     const ruleField = (unitField || field) as string
-    if (field && numFields.includes(ruleField) && !Number.isNaN(numVal)) {
+    if (field && FILTER_NUMERIC_FIELDS.includes(ruleField as never) && !Number.isNaN(numVal)) {
       return [
         { structured: { field: ruleField, op: 'is_not_null', type: 'inclusion' }, label: `${ruleField} present` },
         { structured: { field: ruleField, op: '<=', value: numVal, type: 'inclusion' }, label: `${ruleField} <= ${numVal}` },
@@ -499,8 +481,8 @@ function tryCompoundWithAnd(nl: string): InterpretedRule[] {
     const lo = parseFloat(betweenMatch[firstGroupIsNum ? 1 : 2].replace(/,/g, ''))
     const hi = parseFloat(betweenMatch[firstGroupIsNum ? 2 : 3].replace(/,/g, ''))
     const fieldPhrase = betweenMatch[firstGroupIsNum ? 3 : 1].trim()
-    const field = resolveField(fieldPhrase)
-    if (field && numFields.includes(field) && !Number.isNaN(lo) && !Number.isNaN(hi) && lo <= hi) {
+    const field = resolve(fieldPhrase)
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never) && !Number.isNaN(lo) && !Number.isNaN(hi) && lo <= hi) {
       return [
         { structured: { field, op: '>=', value: lo, type: 'inclusion' }, label: `${field} >= ${lo}` },
         { structured: { field, op: '<=', value: hi, type: 'inclusion' }, label: `${field} <= ${hi}` },
@@ -515,7 +497,7 @@ function tryCompoundWithAnd(nl: string): InterpretedRule[] {
  * Mock NL interpretation: parse simple patterns when Claude is unavailable.
  * Supports: "exclude status = cancelled", "remove cancelled loads", "remove loads that don't have capacity_kg"
  */
-export function interpretFilterRule(nl: string): StructuredFilter | null {
+function interpretFilterRule(nl: string, resolve: ResolveFieldFn): StructuredFilter | null {
   const t = nl.toLowerCase().trim()
   const excludeMatch = t.match(/^exclude\s+(\w+)\s*=\s*(.+)$/)
   const includeMatch = t.match(/^include\s+(\w+)\s*=\s*(.+)$/)
@@ -535,7 +517,7 @@ export function interpretFilterRule(nl: string): StructuredFilter | null {
   const removeMatch = t.match(/(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|quotes?)?\s*(?:with\s+)?(?:status\s+)?([\w_]+)/)
   if (removeMatch) {
     const val = removeMatch[1].toLowerCase().replace(/\s+/g, '_')
-    if (STATUS_VALUES.includes(val)) {
+    if (FILTER_STATUS_VALUES.includes(val)) {
       return { field: 'status', op: '=', value: val, type: 'exclusion' as const }
     }
   }
@@ -560,114 +542,113 @@ export function interpretFilterRule(nl: string): StructuredFilter | null {
   if (excludePlaceFieldMatch) {
     const place = excludePlaceFieldMatch[1].trim()
     const field = excludePlaceFieldMatch[2].trim()
-    if (place && LOCATION_FIELDS.includes(field)) return { field, op: 'contains', value: place, type: 'exclusion' as const }
+    if (place && FILTER_LOCATION_FIELDS.includes(field as never)) return { field, op: 'contains', value: place, type: 'exclusion' as const }
   }
   if (excludeFieldPlaceMatch) {
     const field = excludeFieldPlaceMatch[1].trim()
     const place = excludeFieldPlaceMatch[2].trim()
-    if (place && LOCATION_FIELDS.includes(field)) return { field, op: 'contains', value: place, type: 'exclusion' as const }
+    if (place && FILTER_LOCATION_FIELDS.includes(field as never)) return { field, op: 'contains', value: place, type: 'exclusion' as const }
   }
 
   // "remove loads that don't/doesn't have X" or "remove loads without X" -> exclude rows where X is null
   // CRITICAL: field-specific is_null, NOT has_any_null. Must come before has_any_null patterns.
   const dontHaveMatch = t.match(/(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|quotes?|rows?)\s+(?:that\s+)?(?:don't|doesn't|do\s+not|does\s+not)\s+have\s+([a-z0-9_\s]+)/i)
   if (dontHaveMatch) {
-    const field = resolveField(dontHaveMatch[1])
+    const field = resolve(dontHaveMatch[1])
     if (field) return { field, op: 'is_null', type: 'exclusion' as const }
   }
   const withoutMatch = t.match(/(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|quotes?|rows?)\s+without\s+([a-z0-9_\s]+)/i)
   if (withoutMatch) {
-    const field = resolveField(withoutMatch[1])
+    const field = resolve(withoutMatch[1])
     if (field) return { field, op: 'is_null', type: 'exclusion' as const }
   }
   const missingMatch = t.match(/(?:remove|exclude|drop)\s+(?:all\s+)?(?:loads?|quotes?|rows?)\s+(?:where|with)\s+([a-z0-9_\s]+)\s+is\s+(?:missing|null|blank|empty)/i)
   if (missingMatch) {
-    const field = resolveField(missingMatch[1])
+    const field = resolve(missingMatch[1])
     if (field) return { field, op: 'is_null', type: 'exclusion' as const }
   }
 
   // "include/keep loads that have X" or "include loads with X" or "only see loads with a collection time" -> include rows where X is not null
   const haveMatch = t.match(/(?:include|keep)\s+(?:only\s+)?(?:loads?|quotes?|rows?)\s+(?:that\s+)?(?:have|with)\s+([a-z0-9_\s]+)/i)
   if (haveMatch && !/(?:remove|exclude|drop)/.test(t)) {
-    const field = resolveField(haveMatch[1])
+    const field = resolve(haveMatch[1])
     if (field) return { field, op: 'is_not_null', type: 'inclusion' as const }
   }
   const wantSeeMatch = t.match(/(?:want|like)\s+to\s+(?:only\s+)?(?:see|show)\s+(?:loads?|quotes?|rows?)\s+with\s+(?:a\s+)?([a-z0-9_\s]+)/i)
   if (wantSeeMatch && !/(?:remove|exclude|drop)/.test(t)) {
-    const field = resolveField(wantSeeMatch[1])
+    const field = resolve(wantSeeMatch[1])
     if (field) return { field, op: 'is_not_null', type: 'inclusion' as const }
   }
 
   // Numerical comparisons: "less than 500 on capacity_kg", "rows with less than 500 on capacity_kg", "capacity_kg under 500"
-  const numFields = ['capacity_kg', 'quoted_price', 'distance_km', 'number_of_items']
   const ltMatch = t.match(/(?:less\s+than|under|below)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (ltMatch) {
-    const field = resolveField(ltMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(ltMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(ltMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '<', value: v, type: 'inclusion' as const }
     }
   }
   const ltMatch2 = t.match(/(?:only\s+)?(?:want|see|show)\s+.*?(?:with|where)\s+(?:less\s+than|under|below)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (ltMatch2) {
-    const field = resolveField(ltMatch2[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(ltMatch2[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(ltMatch2[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '<', value: v, type: 'inclusion' as const }
     }
   }
   const ltMatch3 = t.match(/([a-z0-9_]+)\s+(?:less\s+than|under|below)\s+([0-9,.]+)/i)
   if (ltMatch3) {
-    const field = resolveField(ltMatch3[1])
-    if (field && numFields.includes(field)) {
+    const field = resolve(ltMatch3[1])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(ltMatch3[2].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '<', value: v, type: 'inclusion' as const }
     }
   }
   const gtMatch = t.match(/(?:greater\s+than|over|above|more\s+than)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (gtMatch) {
-    const field = resolveField(gtMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(gtMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(gtMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '>', value: v, type: 'inclusion' as const }
     }
   }
   const gtMatch2 = t.match(/([a-z0-9_]+)\s+(?:greater\s+than|over|above|more\s+than)\s+([0-9,.]+)/i)
   if (gtMatch2) {
-    const field = resolveField(gtMatch2[1])
-    if (field && numFields.includes(field)) {
+    const field = resolve(gtMatch2[1])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(gtMatch2[2].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '>', value: v, type: 'inclusion' as const }
     }
   }
   const lteMatch = t.match(/(?:at\s+most|no\s+more\s+than|max)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (lteMatch) {
-    const field = resolveField(lteMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(lteMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(lteMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '<=', value: v, type: 'inclusion' as const }
     }
   }
   const gteMatch = t.match(/(?:at\s+least|no\s+less\s+than|min)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (gteMatch) {
-    const field = resolveField(gteMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(gteMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(gteMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '>=', value: v, type: 'inclusion' as const }
     }
   }
   const excludeLtMatch = t.match(/(?:remove|exclude|drop)\s+.*?(?:less\s+than|under|below)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (excludeLtMatch) {
-    const field = resolveField(excludeLtMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(excludeLtMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(excludeLtMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '<', value: v, type: 'exclusion' as const }
     }
   }
   const excludeGtMatch = t.match(/(?:remove|exclude|drop)\s+.*?(?:greater\s+than|over|above|more\s+than)\s+([0-9,.]+)\s+(?:on|for|in)\s+([a-z0-9_\s]+)/i)
   if (excludeGtMatch) {
-    const field = resolveField(excludeGtMatch[2])
-    if (field && numFields.includes(field)) {
+    const field = resolve(excludeGtMatch[2])
+    if (field && FILTER_NUMERIC_FIELDS.includes(field as never)) {
       const v = parseFloat(excludeGtMatch[1].replace(/,/g, ''))
       if (!Number.isNaN(v)) return { field, op: '>', value: v, type: 'exclusion' as const }
     }

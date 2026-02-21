@@ -84,5 +84,20 @@ describe('transformConfigService', () => {
         expect(config.load![f]).toBeDefined()
       }
     })
+
+    it('infers stripSuffixes from sample data', () => {
+      const mappedData = {
+        quote: [{ quoted_price: '100 EUR' }, { quoted_price: '250 EUR' }],
+        load: [{ distance_km: '50 mi' }, { distance_km: '120 mi' }],
+        driver_vehicle: [],
+      }
+      const config = buildMockedTransformConfig(mappedData)
+      expect(config.quote!.quoted_price.stripSuffixes).toEqual(
+        expect.arrayContaining(['£', 'GBP', 'EUR'])
+      )
+      expect(config.load!.distance_km.stripSuffixes).toEqual(
+        expect.arrayContaining(['km', 'KM', 'mi'])
+      )
+    })
   })
 })

@@ -4,10 +4,10 @@ import { DataModelPopover } from '../DataModelPopover'
 import { PipelineDataTabs } from '../PipelineDataTabs'
 import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
-const DEFAULT_JOINS = [
+const SUGGESTED_JOINS = [
   { name: 'Quote→Load', leftEntity: 'quote', rightEntity: 'load', leftKey: 'load_id', rightKey: 'load_id' },
   { name: 'Load→Driver+Vehicle', leftEntity: 'load', rightEntity: 'driver_vehicle', leftKey: 'allocated_vehicle_id', rightKey: 'vehicle_id', fallbackKey: 'driver_id' },
-]
+] as const
 
 interface JoinsProps {
   sessionData: {
@@ -39,11 +39,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
   const [nlInput, setNlInput] = useState('')
   const [nlResult, setNlResult] = useState<string | null>(null)
   const [interpreting, setInterpreting] = useState(false)
-  const joins = (
-    profile.aiMode === 'claude'
-      ? (profile.joins || [])
-      : (profile.joins || DEFAULT_JOINS)
-  ) as typeof DEFAULT_JOINS
+  const joins = (profile.joins ?? []) as Array<{ name: string; leftEntity: string; rightEntity: string; leftKey: string; rightKey: string; fallbackKey?: string }>
 
   const [lastInterpreted, setLastInterpreted] = useState<Record<string, unknown> | null>(null)
 
@@ -66,8 +62,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
 
   const handleAddInterpreted = () => {
     if (!lastInterpreted) return
-    const newJoins = [...joins, lastInterpreted] as typeof DEFAULT_JOINS
-    onUpdate(newJoins)
+    onUpdate([...joins, lastInterpreted])
     setLastInterpreted(null)
     setNlInput('')
     setNlResult(null)
@@ -147,7 +142,11 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
   }, [canPreview, skipPipelineInClaude, profile.id, profile.aiMode, JSON.stringify(joins), sessionData.quote?.rows?.length, sessionData.load?.rows?.length, sessionData.driver_vehicle?.rows?.length])
 
   const saveJoins = async () => {
-    await onSaveProfile(profile.id, { joins: joins.length ? joins : (profile.aiMode === 'claude' ? [] : DEFAULT_JOINS) })
+    await onSaveProfile(profile.id, { joins })
+  }
+
+  const handleApplySuggestedJoins = () => {
+    onUpdate([...SUGGESTED_JOINS])
   }
 
   return (
@@ -175,9 +174,30 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
             Describe your join in natural language. Add each join to build the pipeline.
           </p>
         ) : (
-          <p className="text-sm text-[rgba(0,0,0,0.6)] mb-3">
-            Preset joins for Quote→Load and Load→Driver+Vehicle. Use NL to interpret custom keys.
-          </p>
+          <>
+            <p className="text-sm text-[rgba(0,0,0,0.6)] mb-3">
+              Add joins via natural language or apply the suggested configuration below.
+            </p>
+            {joins.length === 0 && (
+              <div className="mb-3 p-4 bg-primary/5 border border-primary/20 rounded">
+                <h4 className="font-medium text-[rgba(0,0,0,0.87)] mb-2">Suggested joins</h4>
+                <p className="text-sm text-[rgba(0,0,0,0.6)] mb-3">
+                  Standard Quote→Load→Driver+Vehicle flow matching the platform schema:
+                </p>
+                <ul className="text-sm text-[rgba(0,0,0,0.7)] mb-3 space-y-1">
+                  <li>Quote→Load on load_id</li>
+                  <li>Load→Driver+Vehicle on allocated_vehicle_id (fallback: driver_id)</li>
+                </ul>
+                <button
+                  type="button"
+                  onClick={handleApplySuggestedJoins}
+                  className="px-4 py-2 bg-primary text-white rounded font-medium shadow-md-1 hover:bg-primary-dark"
+                >
+                  Apply suggested joins
+                </button>
+              </div>
+            )}
+          </>
         )}
         <div className="mb-3">
           <button

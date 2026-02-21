@@ -56,7 +56,7 @@ function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, '_').replace(/_+/g, '_')
 }
 
-function levenshtein(a: string, b: string): number {
+function levenshteinDistance(a: string, b: string): number {
   const m = a.length, n = b.length
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
   for (let i = 0; i <= m; i++) dp[i][0] = i
@@ -83,10 +83,26 @@ function fuzzyMatchEnum(dirty: string, validValues: string[]): string | null {
   let bestMatch: string | null = null
   let bestDist = Infinity
   for (const v of validValues) {
-    const d = levenshtein(n, normalize(v))
+    const d = levenshteinDistance(n, normalize(v))
     if (d < bestDist) { bestDist = d; bestMatch = v }
   }
   const threshold = Math.max(2, Math.floor(n.length * 0.3))
+  return bestDist <= threshold ? bestMatch : null
+}
+
+/** Levenshtein-based fuzzy match for suggesting enum mappings (dirty values like "Small Van") */
+function fuzzyMatchForSuggestion(dirty: string, validValues: string[]): string | null {
+  const n = normalize(dirty)
+  let bestMatch: string | null = null
+  let bestDist = Infinity
+  for (const v of validValues) {
+    const d = levenshteinDistance(n, normalize(v))
+    if (d < bestDist) {
+      bestDist = d
+      bestMatch = v
+    }
+  }
+  const threshold = Math.max(2, Math.floor(n.length * 0.35))
   return bestDist <= threshold ? bestMatch : null
 }
 
@@ -112,12 +128,15 @@ export function suggestEnumMappings(
       result[src] = validNormalized.get(srcNorm)!
       continue
     }
-    const best = validValues.find(
+    let best = validValues.find(
       (v) =>
         srcNorm === normalize(v) ||
         srcNorm.includes(normalize(v)) ||
         normalize(v).includes(srcNorm)
     )
+    if (!best) {
+      best = fuzzyMatchForSuggestion(src, validValues) ?? undefined
+    }
     if (best) result[src] = best
   }
   return result

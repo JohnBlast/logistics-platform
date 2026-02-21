@@ -1,21 +1,17 @@
 import { Router } from 'express'
 import { claudeInterpretJoin, isClaudeAvailable } from '../services/claudeService.js'
+import { SUGGESTED_JOINS } from '../config/mockedConfig.js'
 
 export const joinsRouter = Router()
-
-const DEFAULT_JOINS = [
-  { name: 'Quote→Load', leftEntity: 'quote', rightEntity: 'load', leftKey: 'load_id', rightKey: 'load_id' },
-  { name: 'Load→Driver+Vehicle', leftEntity: 'load', rightEntity: 'driver_vehicle', leftKey: 'allocated_vehicle_id', rightKey: 'vehicle_id', fallbackKey: 'driver_id' },
-]
 
 /** Mock NL interpretation. Parses simple patterns like "join quote to load on load_id" */
 function interpretJoinRule(nl: string): Record<string, unknown> | null {
   const t = nl.toLowerCase().trim()
   if (t.includes('quote') && t.includes('load') && (t.includes('load_id') || t.includes('load id') || t.includes('quote.load_id'))) {
-    return { ...DEFAULT_JOINS[0] }
+    return { ...SUGGESTED_JOINS[0] }
   }
   if (t.includes('load') && (t.includes('driver') || t.includes('vehicle') || t.includes('driver_vehicle'))) {
-    const join = { ...DEFAULT_JOINS[1] }
+    const join = { ...SUGGESTED_JOINS[1] }
     if (t.includes('allocated_vehicle_id') || t.includes('allocated_vehicle') || t.includes('vehicle_id') || t.includes('vehicle id')) {
       join.leftKey = 'allocated_vehicle_id'
     }

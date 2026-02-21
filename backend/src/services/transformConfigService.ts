@@ -69,26 +69,75 @@ function fieldToRule(field: FieldDef, entity: string): TransformRule {
   return { type: 'uuid' }
 }
 
-/** Build mocked config from schema (no Claude call). */
-export function buildMockedTransformConfig(): TransformConfig {
+/** Infer stripSuffixes from sample values (e.g. "100 EUR", "£100", "50 km" -> add EUR, £, km) */
+function inferSuffixesFromSamples(
+  rows: Record<string, unknown>[],
+  fieldName: string,
+  baseSuffixes: string[]
+): string[] {
+  const seen = new Set(baseSuffixes.map((s) => s.toLowerCase()))
+  const sampleSize = Math.min(20, rows.length)
+  for (let i = 0; i < sampleSize; i++) {
+    const val = rows[i]?.[fieldName]
+    if (val == null) continue
+    const s = String(val).trim()
+    // Prefix: £100, €50, $75
+    const prefixMatch = s.match(/^([£€$])\s*\d/)
+    if (prefixMatch && !seen.has(prefixMatch[1].toLowerCase())) {
+      seen.add(prefixMatch[1].toLowerCase())
+      baseSuffixes = [...baseSuffixes, prefixMatch[1]]
+    }
+    // Suffix: 100 EUR, 50 km, 25 kg
+    const suffixMatch = s.match(/\d\s*([a-zA-Z]{2,4})$/i)
+    if (suffixMatch && !seen.has(suffixMatch[1].toLowerCase())) {
+      seen.add(suffixMatch[1].toLowerCase())
+      baseSuffixes = [...baseSuffixes, suffixMatch[1]]
+    }
+  }
+  return baseSuffixes
+}
+
+/** Build mocked config from schema. When mappedData is provided, inspects samples to infer formats. */
+export function buildMockedTransformConfig(mappedData?: {
+  quote: Record<string, unknown>[]
+  load: Record<string, unknown>[]
+  driver_vehicle: Record<string, unknown>[]
+}): TransformConfig {
   const config: TransformConfig = {}
 
   const quoteConfig: Record<string, TransformRule> = {}
   for (const f of QUOTE_FIELDS) {
-    quoteConfig[f.name] = fieldToRule(f, 'quote')
+    let rule = fieldToRule(f, 'quote')
+    if (mappedData?.quote?.length && f.type === 'DECIMAL' && f.name === 'quoted_price') {
+      const suffixes = inferSuffixesFromSamples(mappedData.quote, f.name, ['£', 'GBP'])
+      if (suffixes.length > 2) rule = { ...rule, stripSuffixes: suffixes }
+    }
+    quoteConfig[f.name] = rule
   }
   config.quote = quoteConfig
 
   const loadConfig: Record<string, TransformRule> = {}
   for (const f of LOAD_FIELDS) {
-    loadConfig[f.name] = fieldToRule(f, 'load')
+    let rule = fieldToRule(f, 'load')
+    if (mappedData?.load?.length && f.type === 'DECIMAL') {
+      if (f.name === 'distance_km') {
+        const suffixes = inferSuffixesFromSamples(mappedData.load, f.name, ['km', 'KM'])
+        if (suffixes.length > 2) rule = { ...rule, stripSuffixes: suffixes }
+      }
+    }
+    loadConfig[f.name] = rule
   }
   config.load = loadConfig
 
   const driverVehicleConfig: Record<string, TransformRule> = {}
   for (const f of [...DRIVER_FIELDS, ...VEHICLE_FIELDS]) {
     if (!driverVehicleConfig[f.name]) {
-      driverVehicleConfig[f.name] = fieldToRule(f, 'driver_vehicle')
+      let rule = fieldToRule(f, 'driver_vehicle')
+      if (mappedData?.driver_vehicle?.length && f.type === 'DECIMAL' && f.name === 'capacity_kg') {
+        const suffixes = inferSuffixesFromSamples(mappedData.driver_vehicle, f.name, ['kg', 'KG'])
+        if (suffixes.length > 2) rule = { ...rule, stripSuffixes: suffixes }
+      }
+      driverVehicleConfig[f.name] = rule
     }
   }
   config.driver_vehicle = driverVehicleConfig
@@ -126,5 +175,5 @@ export async function generateTransformConfig(
       return fromClaude
     }
   }
-  return buildMockedTransformConfig()
+  return buildMockedTransformConfig(input.mappedData)
 }
