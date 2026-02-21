@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { api } from '../services/api'
-import { DataTableWithSearch } from './DataTableWithSearch'
-import { DataModelPopover } from './DataModelPopover'
+import { api } from '../../services/api'
+import { DataTableWithSearch } from '../DataTableWithSearch'
+import { DataModelPopover } from '../DataModelPopover'
 
 interface SessionDataShape {
   quote?: { headers: string[]; rows: Record<string, unknown>[] }

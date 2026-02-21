@@ -33,7 +33,12 @@ function loadSimulateFromStorage(): {
     const sd = parsed.sessionData as SessionData | undefined
     const out = parsed.outputs as Outputs | undefined
     const validSession =
-      sd?.quote?.rows && Array.isArray(sd.quote.rows) && sd?.load?.rows && sd?.driver_vehicle?.rows
+      sd?.quote?.rows &&
+      Array.isArray(sd.quote.rows) &&
+      sd?.load?.rows &&
+      Array.isArray(sd.load.rows) &&
+      sd?.driver_vehicle?.rows &&
+      Array.isArray(sd.driver_vehicle.rows)
     const validOutputs = !out || (out && Array.isArray(out.flatRows))
     if (!validSession && !validOutputs) return { sessionData: null, outputs: null, runSummary: null }
     return {

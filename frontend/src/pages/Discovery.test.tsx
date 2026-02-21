@@ -8,6 +8,10 @@ vi.mock('../services/api', () => ({
   api: {
     health: { ai: vi.fn(() => Promise.resolve({ claudeAvailable: true })) },
     chat: vi.fn(),
+    discovery: {
+      getData: vi.fn(() => Promise.resolve(null)),
+      clearData: vi.fn(() => Promise.resolve()),
+    },
   },
 }))
 

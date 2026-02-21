@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, type Profile } from '../services/api'
-import { DataModelPopover } from './DataModelPopover'
-import { AiWorkingIndicator } from './AiWorkingIndicator'
+import { api, type Profile } from '../../services/api'
+import { DataModelPopover } from '../DataModelPopover'
+import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
 type ObjectType = 'quote' | 'load' | 'driver_vehicle'
 

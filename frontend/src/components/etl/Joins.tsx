@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { api, type Profile } from '../services/api'
-import { DataModelPopover } from './DataModelPopover'
-import { PipelineDataTabs } from './PipelineDataTabs'
-import { AiWorkingIndicator } from './AiWorkingIndicator'
+import { api, type Profile } from '../../services/api'
+import { DataModelPopover } from '../DataModelPopover'
+import { PipelineDataTabs } from '../PipelineDataTabs'
+import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
 const DEFAULT_JOINS = [
   { name: 'Quote→Load', leftEntity: 'quote', rightEntity: 'load', leftKey: 'load_id', rightKey: 'load_id' },

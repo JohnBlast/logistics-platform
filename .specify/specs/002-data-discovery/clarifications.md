@@ -1,7 +1,7 @@
 # Clarifications: 002 – Logistics Discovery
 
 **Purpose:** Resolved underspecified areas from PRD comparison and spec-kit clarify workflow.  
-**Source:** [002-prd-logistics-discovery .md](../../../002-prd-logistics-discovery .md)  
+**Source:** [002-PRD-discovery.md](002-PRD-discovery.md)  
 **Created:** 2025-02-20
 
 ---

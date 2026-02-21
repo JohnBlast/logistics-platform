@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { api, type Profile } from '../services/api'
-import { DataModelPopover } from './DataModelPopover'
-import { DataTableWithSearch } from './DataTableWithSearch'
-import { PipelineDataTabs } from './PipelineDataTabs'
-import { AiWorkingIndicator } from './AiWorkingIndicator'
+import { api, type Profile } from '../../services/api'
+import { DataModelPopover } from '../DataModelPopover'
+import { DataTableWithSearch } from '../DataTableWithSearch'
+import { PipelineDataTabs } from '../PipelineDataTabs'
+import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
 export interface FilterRule {
   type: 'inclusion' | 'exclusion'

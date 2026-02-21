@@ -48,5 +48,5 @@ User (Simulate Pipeline)          ETL Backend                    Discovery
 ## PRD References
 
 - **ETL:** `001-ETL-PRD.md` FR-10.6, Journey 2
-- **Discovery:** `002-prd-logistics-discovery .md` §1a, Journey 8, Data Ingestion
+- **Discovery:** `specs/002-data-discovery/002-PRD-discovery.md` §1a, Journey 8, Data Ingestion
 - **Platform:** `.specify/platform-data-model.md` (Product Integration section)

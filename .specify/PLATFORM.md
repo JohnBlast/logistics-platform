@@ -7,7 +7,7 @@ A portfolio platform for logistics marketplace applications. This repository use
 | # | Product | Branch | Status | Description |
 |---|---------|--------|--------|-------------|
 | **001** | [ETL Configurator](#001-etl-configurator) | `001-etl-configurator` | Spec complete | AI-assisted ETL configuration for fleet operators to transform raw logistics data (CSV/Excel) into a standardized schema |
-| **002** | Data Discovery | `002-data-discovery` | Planned | TBD – explore and query platform data |
+| **002** | Data Discovery | `002-data-discovery` | Built | Natural language querying of pipeline data; chat interface with Claude |
 | **003** | Job Market | `003-job-market` | Planned | TBD – marketplace for loads, quotes, and fleets |
 
 ## Navigation

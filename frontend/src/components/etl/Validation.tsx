@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { api } from '../services/api'
-import { DataTableWithSearch } from './DataTableWithSearch'
-import { PipelineDataTabs } from './PipelineDataTabs'
+import { api } from '../../services/api'
+import { DataTableWithSearch } from '../DataTableWithSearch'
+import { PipelineDataTabs } from '../PipelineDataTabs'
 
 interface ValidationSummary {
   rowsSuccessful: number

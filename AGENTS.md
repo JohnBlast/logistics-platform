@@ -10,7 +10,7 @@ Guidance for AI agents working on this codebase.
 | **.specify/specs/001-etl-configurator/nl-interpretation.md** | NL interpretation requirements (Spec-Kit aligned) | Implementing or extending NL features (filters, joins); defines semantic taxonomy, example phrasings, interpretation contract |
 | **.specify/specs/001-etl-configurator/filter-scenarios.md** | Filter implementation reference | Implementing filter patterns; concrete rule-based and Claude examples |
 | **.specify/specs/001-etl-configurator/simulate-add-pattern.md** | Simulate pipeline incremental-add design | Reusing add pattern for other products; scaling test data |
-| **002-prd-logistics-discovery .md** | Golden source for Logistics Discovery | Specifying Discovery; ETL→Discovery integration; Simulate Pipeline as data source; platform schema |
+| **.specify/specs/002-data-discovery/002-PRD-discovery.md** | Golden source for Logistics Discovery | Specifying Discovery; ETL→Discovery integration; Simulate Pipeline as data source; platform schema |
 | **.specify/specs/002-data-discovery/nl-interpretation.md** | NL interpretation requirements for Discovery (Spec-Kit aligned) | Implementing or extending Discovery NL features; semantic taxonomy, phrase→TableInstruction mapping, acceptance scenarios, edge cases |
 | **.specify/specs/002-data-discovery/data-quality.md** | Data quality contract for Discovery pipeline | Dirty data patterns, normalization rules per layer, field alias mappings, number/date format handling |
 | **.specify/specs/002-data-discovery/prompt-spec.md** | System prompt specification (versioned contract) | Modifying Claude's system prompt; prompt structure, rules, examples, dynamic injection points |
@@ -31,7 +31,7 @@ When running `/speckit.specify` or `/speckit.clarify` for **001 ETL Configurator
 - For **natural language features** (filters, joins): use `nl-interpretation.md`—define semantic taxonomy, example phrasings, interpretation contract (phrase → structured output), and Given/When/Then acceptance scenarios per [Spec-Kit best practices](https://github.com/github/spec-kit)
 
 When running `/speckit.specify` or `/speckit.clarify` for **002 Logistics Discovery**:
-- **Always reference** `002-prd-logistics-discovery .md` as the source of truth
+- **Always reference** `.specify/specs/002-data-discovery/002-PRD-discovery.md` as the source of truth
 - Include ETL→Discovery integration: Simulate Pipeline output feeds Discovery; no separate export in MVP
 - Ensure journeys, FRs, and TableInstruction schema (§11) are reflected in the spec
 - For **natural language features**: use `nl-interpretation.md`—defines semantic taxonomy, phrase→TableInstruction mapping, acceptance scenarios, and prohibited outputs

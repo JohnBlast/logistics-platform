@@ -1,8 +1,8 @@
 # 002 – Logistics Discovery
 
-**Status**: Planned  
+**Status**: Built  
 **Branch**: `002-data-discovery`  
-**Golden Source PRD**: [002-prd-logistics-discovery .md](../../../002-prd-logistics-discovery .md)  
+**Golden Source PRD**: [002-PRD-discovery.md](002-PRD-discovery.md)  
 **Spec**: [spec.md](spec.md)
 
 ## Overview
@@ -18,7 +18,7 @@ Discovery consumes data from the **Simulate Pipeline** (Show Overall Data) page:
 3. Discovery loads this output; derives `quotes`, `loads`, `loads_and_quotes` views.
 4. No separate export step in MVP. Run Pipeline output = Discovery input.
 
-**Contract:** See `002-prd-logistics-discovery .md` §1a, §11; `.specify/platform-data-model.md` for schema alignment.
+**Contract:** See [002-PRD-discovery.md](002-PRD-discovery.md) §1a, §11; [platform-data-model.md](../../platform-data-model.md) for schema alignment.
 
 **Clarifications:** [clarifications.md](clarifications.md) — resolved underspecified areas (tenant in prototype, loads derivation, TableFilter schema, etc.).
 

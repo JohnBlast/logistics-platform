@@ -4,7 +4,7 @@
 **Created**: 2025-02-20
 **Status**: Planned
 **Product**: Logistics Platform – Second Product
-**Source of Truth**: [002-prd-logistics-discovery .md](../../../002-prd-logistics-discovery .md) — full product requirements; reference when specifying, clarifying, or validating.
+**Source of Truth**: [002-PRD-discovery.md](002-PRD-discovery.md) — full product requirements; reference when specifying, clarifying, or validating.
 
 ---
 
@@ -388,7 +388,7 @@ A user asks common operational questions and receives structured, correct output
 
 ## Supporting Documents
 
-- [002-prd-logistics-discovery .md](../../../002-prd-logistics-discovery .md) — Golden source; full product requirements, §11 TableInstruction
+- [002-PRD-discovery.md](002-PRD-discovery.md) — Golden source; full product requirements, §11 TableInstruction
 - [clarifications.md](clarifications.md) — Resolved underspecified areas
 - [.specify/platform-data-model.md](../../platform-data-model.md) — Canonical schema
 - [.specify/etl-discovery-integration.md](../../etl-discovery-integration.md) — ETL→Discovery data flow

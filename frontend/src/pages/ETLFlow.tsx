@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api, type Profile } from '../services/api'
 import { getRequiredFromSchema } from '../utils/schemaUtils'
-import { Ingestion } from '../components/Ingestion'
-import { Mapping } from '../components/Mapping'
-import { EnumMapping } from '../components/EnumMapping'
-import { Joins } from '../components/Joins'
-import { Filtering } from '../components/Filtering'
-import { Validation } from '../components/Validation'
+import { Ingestion } from '../components/etl/Ingestion'
+import { Mapping } from '../components/etl/Mapping'
+import { EnumMapping } from '../components/etl/EnumMapping'
+import { Joins } from '../components/etl/Joins'
+import { Filtering } from '../components/etl/Filtering'
+import { Validation } from '../components/etl/Validation'
 
 const STEPS = ['ingestion', 'mapping', 'enum_mapping', 'joins', 'filtering', 'validation'] as const
 type Step = (typeof STEPS)[number]

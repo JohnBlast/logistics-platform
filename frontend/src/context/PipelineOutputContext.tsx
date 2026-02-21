@@ -62,12 +62,17 @@ export function PipelineOutputProvider({ children }: PipelineOutputProviderProps
   const [pipelineOutput, setState] = useState<PipelineOutput | null>(() => loadFromStorage())
 
   useEffect(() => {
-    api.discovery.getData().then((data) => {
-      if (data?.flatRows && Array.isArray(data.flatRows)) {
-        setState(data)
-        saveToStorage(data)
-      }
-    })
+    api.discovery
+      .getData()
+      .then((data) => {
+        if (data?.flatRows && Array.isArray(data.flatRows)) {
+          setState(data)
+          saveToStorage(data)
+        }
+      })
+      .catch(() => {
+        /* Keep state from storage or null on fetch failure */
+      })
   }, [])
 
   const setPipelineOutput = useCallback((data: PipelineOutput) => {

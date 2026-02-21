@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { api, type Profile } from '../services/api'
-import { SCHEMA_KEYS, getFieldsFromSchema } from '../utils/schemaUtils'
-import { DataModelPopover } from './DataModelPopover'
-import { AiWorkingIndicator } from './AiWorkingIndicator'
+import { api, type Profile } from '../../services/api'
+import { SCHEMA_KEYS, getFieldsFromSchema } from '../../utils/schemaUtils'
+import { DataModelPopover } from '../DataModelPopover'
+import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
 const FIELD_LABELS: Record<string, string> = {
   quote_id: 'Quote reference',
