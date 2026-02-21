@@ -7,5 +7,4 @@ dist
 *.db
 data/
 .DS_Store
-.specify/toolkit/
 *retrospective*.md
