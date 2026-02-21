@@ -4,7 +4,7 @@ export type ColumnFormat = 'month_name' | 'percent' | 'currency'
 /** Table filter - operator key per C-5 */
 export interface TableFilter {
   field: string
-  operator: 'include' | 'exclude' | 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'between' | 'top' | 'bottom'
+  operator: 'include' | 'exclude' | 'eq' | 'ne' | 'contains' | 'lt' | 'lte' | 'gt' | 'gte' | 'between' | 'top' | 'bottom'
   value?: string | number | (string | number)[]
   topBottomN?: number
 }

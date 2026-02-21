@@ -1,5 +1,6 @@
 import { db } from '../models/db.js'
 import { randomUUID } from 'crypto'
+import type { TransformConfig } from '../types/transformConfig.js'
 
 export type ProfileStatus = 'active' | 'draft' | 'archive'
 export type AiMode = 'claude' | 'mocked'
@@ -36,6 +37,7 @@ export interface Profile {
   mappings: Record<string, FieldMapping> // objectType -> { target -> source }
   lockedMappings?: Record<string, FieldMapping>
   enumMappings?: EnumMappings // entity -> field -> { sourceValue -> targetValue }
+  transformConfig?: TransformConfig // entity -> field -> TransformRule (AI data cleaning)
   joins: JoinOperation[]
   filters: FilterRule[]
   createdAt: string
@@ -74,7 +76,7 @@ export function createProfile(data: {
 
 export function updateProfile(
   id: string,
-  updates: Partial<Pick<Profile, 'mappings' | 'lockedMappings' | 'enumMappings' | 'joins' | 'filters' | 'name' | 'description'>>
+  updates: Partial<Pick<Profile, 'mappings' | 'lockedMappings' | 'enumMappings' | 'transformConfig' | 'joins' | 'filters' | 'name' | 'description'>>
 ): Profile | null {
   const profile = getProfile(id)
   if (!profile) return null
@@ -85,6 +87,7 @@ export function updateProfile(
   const mappings = updates.mappings !== undefined ? JSON.stringify(updates.mappings) : undefined
   const lockedMappings = updates.lockedMappings !== undefined ? JSON.stringify(updates.lockedMappings) : undefined
   const enumMappings = updates.enumMappings !== undefined ? JSON.stringify(updates.enumMappings) : undefined
+  const transformConfig = updates.transformConfig !== undefined ? JSON.stringify(updates.transformConfig) : undefined
   const joins = updates.joins !== undefined ? JSON.stringify(updates.joins) : undefined
   const filters = updates.filters !== undefined ? JSON.stringify(updates.filters) : undefined
   const name = updates.name !== undefined ? updates.name : undefined
@@ -103,6 +106,10 @@ export function updateProfile(
   if (enumMappings !== undefined) {
     sets.push('enumMappings = ?')
     vals.push(enumMappings)
+  }
+  if (transformConfig !== undefined) {
+    sets.push('transformConfig = ?')
+    vals.push(transformConfig)
   }
   if (joins !== undefined) {
     sets.push('joins = ?')
@@ -161,6 +168,7 @@ export function duplicateProfile(id: string): Profile | null {
     mappings: source.mappings,
     lockedMappings: source.lockedMappings,
     enumMappings: source.enumMappings,
+    transformConfig: source.transformConfig,
     joins: source.joins,
     filters: source.filters,
     name: `${source.name} (copy)`,
@@ -179,6 +187,7 @@ function rowToProfile(row: Record<string, unknown>): Profile {
     mappings: JSON.parse((row.mappings as string) || '{}'),
     lockedMappings: JSON.parse((row.lockedMappings as string) || '{}'),
     enumMappings: JSON.parse((row.enumMappings as string) || '{}'),
+    transformConfig: row.transformConfig != null && row.transformConfig !== '' ? JSON.parse(row.transformConfig as string) : undefined,
     joins: JSON.parse((row.joins as string) || '[]'),
     filters: JSON.parse((row.filters as string) || '[]'),
     createdAt: row.createdAt as string,

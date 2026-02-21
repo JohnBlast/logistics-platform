@@ -101,6 +101,27 @@ Transforms raw column names to canonical schema names.
 | `Type` | `vehicle_type` |
 | `Capacity kg` | `capacity_kg` |
 
+### Stage 2.5: AI Transformation (`applyTransformations`)
+
+Runs after enum mapping, before deduplication. Deterministic cleaning based on TransformConfig (generated once from schema + sample data; Claude or mocked). Invisible to user.
+
+| Field type | Transformation | Output |
+|------------|----------------|--------|
+| `date` | Parse DD/MM/YYYY, MM-DD-YYYY, DD-MM-YYYY, ISO, etc. | `YYYY-MM-DD` |
+| `datetime` | Parse all formats | ISO 8601 |
+| `number` | Strip £, GBP, km, kg; normalize comma-decimal/thousands | `"1234.56"` |
+| `integer` | Parse to int | `42` |
+| `location_city` | Fuzzy match to UK cities | `"Birmingham"` |
+| `location_town` | Fuzzy match to UK towns | `"Reading"` |
+| `person_name` | Title Case (no spell fix) | `"James Smith"` |
+| `email` | Lowercase, trim | `"joe@example.com"` |
+| `phone` | Strip non-digits | `"07123456789"` |
+| `registration` | Uppercase, normalize separators | `"AB12 CDE"` |
+| `uuid` | Trim | (trimmed) |
+| `skip` | Enum fields (handled by Stage 2) | (unchanged) |
+
+Post-transformation, Discovery receives clean data: canonical locations, ISO dates, numeric values without unit suffixes. `LOCATION_ALIASES` and `parseNum` remain as defense-in-depth for external data sources.
+
 ### Stage 2: Enum Mapping (`applyEnumMappings`)
 
 Normalizes enum fields to canonical values using a three-tier resolution:

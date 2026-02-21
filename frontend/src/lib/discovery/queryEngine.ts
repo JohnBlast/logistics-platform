@@ -28,7 +28,10 @@ function getRowValue(row: Record<string, unknown>, field: string): unknown {
     vehicle_type: ['Type', 'Vehicle Type', 'vehicle type'],
     requested_vehicle_type: ['Vehicle Type', 'Type', 'requested_vehicle_type'],
     driver_name: ['Driver Name', 'driver name', 'name'],
+    load_poster_name: ['Poster Name', 'poster name', 'load_poster_name'],
     collection_date: ['Collection Date', 'collection date', 'Collection Time'],
+    load_status: ['status', 'Status', 'load_status'],
+    quote_status: ['quote_status', 'Quote Status'],
   }
   for (const a of aliases[field] ?? []) {
     if (row[a] !== undefined && row[a] !== null) return row[a]
@@ -48,25 +51,26 @@ export interface QueryResult {
   totalRows: number
 }
 
+/** Defense-in-depth: ETL transformation pre-cleans locations to canonical UK names; keep case variants for external data. */
 const LOCATION_ALIASES: Record<string, string[]> = {
   london: ['london', 'London', 'LONDON'],
-  birmingham: ['birmingham', 'Birmingham', 'Birmigham', 'birmigham', 'BIRMINGHAM'],
-  manchester: ['manchester', 'Manchester', 'MANCHESTER', 'Manchestter'],
-  leeds: ['leeds', 'Leeds', 'Leeds '],
-  glasgow: ['glasgow', 'Glasgow', 'Glasow'],
-  liverpool: ['liverpool', 'Liverpool', 'Lverpool'],
-  edinburgh: ['edinburgh', 'Edinburgh', 'Edinbrugh'],
-  cardiff: ['cardiff', 'Cardiff', 'CArdiff'],
-  newcastle: ['newcastle', 'Newcastle', 'Newcstle'],
-  sheffield: ['sheffield', 'Sheffield', 'Sheffeild'],
+  birmingham: ['birmingham', 'Birmingham', 'BIRMINGHAM'],
+  manchester: ['manchester', 'Manchester', 'MANCHESTER'],
+  leeds: ['leeds', 'Leeds'],
+  glasgow: ['glasgow', 'Glasgow'],
+  liverpool: ['liverpool', 'Liverpool'],
+  edinburgh: ['edinburgh', 'Edinburgh'],
+  cardiff: ['cardiff', 'Cardiff'],
+  newcastle: ['newcastle', 'Newcastle'],
+  sheffield: ['sheffield', 'Sheffield'],
   bristol: ['bristol', 'Bristol'],
-  nottingham: ['nottingham', 'Nottingham', 'Nottingam'],
-  southampton: ['southampton', 'Southampton', 'Southhampton'],
-  brighton: ['brighton', 'Brighton', 'Bighton'],
-  coventry: ['coventry', 'Coventry', 'Coventy'],
-  hull: ['hull', 'Hull', ' Hul ', 'Hul'],
-  bradford: ['bradford', 'Bradford', 'Bradfrord'],
-  stoke: ['stoke', 'Stoke', 'Stokee'],
+  nottingham: ['nottingham', 'Nottingham'],
+  southampton: ['southampton', 'Southampton'],
+  brighton: ['brighton', 'Brighton'],
+  coventry: ['coventry', 'Coventry'],
+  hull: ['hull', 'Hull'],
+  bradford: ['bradford', 'Bradford'],
+  stoke: ['stoke', 'Stoke'],
 }
 
 function compareNumericOrDate(
@@ -117,6 +121,9 @@ function applyFilter(rows: Record<string, unknown>[], filter: TableFilter): Reco
         return v != null && matchesValue(v, value)
       case 'ne':
         return v == null || !matchesValue(v, value)
+      case 'contains':
+        if (v == null) return false
+        return String(v).toLowerCase().includes(String(value ?? '').toLowerCase())
       case 'lt':
         return compareNumericOrDate(v, value, (a, b) => a < b)
       case 'lte':

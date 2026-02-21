@@ -10,7 +10,7 @@ TableInstruction JSON schema:
 {
   "dataSource": "loads" | "quotes" | "loads_and_quotes",
   "columns": [{ "id": "string", "header": "string", "format?": "month_name" | "percent" | "currency" }] (optional; can be [] for aggregation-only; display will auto-infer),
-  "filters": [{ "field": "string", "operator": "eq" | "ne" | "include" | "exclude" | "lt" | "lte" | "gt" | "gte" | "between", "value": any, "topBottomN?": number }],
+  "filters": [{ "field": "string", "operator": "eq" | "ne" | "contains" | "include" | "exclude" | "lt" | "lte" | "gt" | "gte" | "between", "value": any, "topBottomN?": number }],
   "orFilters": [[...filters]] (optional; each inner array ANDed, results ORed; for "between London and Birmingham"),
   "groupBy": ["string"],
   "groupByFormats": { "field": "day" | "week" | "month" | "year" },
@@ -20,9 +20,10 @@ TableInstruction JSON schema:
   "pctChange": { "field": "string", "alias": "string" }
 }
 
-Load fields: load_id, status, load_poster_name, allocated_vehicle_id, driver_id, driver_name, collection_town, collection_city, collection_date, collection_time, delivery_town, delivery_city, delivery_date, delivery_time, distance_km, number_of_items, completion_date, created_at, updated_at, vehicle_type
-Quote fields: quote_id, load_id, associated_fleet_id, fleet_quoter_name, load_poster_name, status, quoted_price, date_created, requested_vehicle_type, collection_town, collection_city, collection_date, collection_time, delivery_town, delivery_city, delivery_date, delivery_time, distance_km, created_at, updated_at
-loads_and_quotes: Load + Quote fields; use quoted_price for revenue. Status values: draft, posted, in_transit, completed, cancelled (load); draft, sent, accepted, rejected, expired (quote).
+Load fields: load_id, load_status, load_poster_name, allocated_vehicle_id, driver_id, driver_name, collection_town, collection_city, collection_date, collection_time, delivery_town, delivery_city, delivery_date, delivery_time, distance_km, number_of_items, completion_date, created_at, updated_at, vehicle_type
+Quote fields: quote_id, load_id, associated_fleet_id, fleet_quoter_name, load_poster_name, quote_status, quoted_price, date_created, requested_vehicle_type, collection_town, collection_city, collection_date, collection_time, delivery_town, delivery_city, delivery_date, delivery_time, distance_km, created_at, updated_at
+loads_and_quotes (flat table): Load + Quote fields merged. Has both load_status and quote_status. The loads_and_quotes dataSource ALREADY filters for quote_status=accepted, so DO NOT filter on quote_status.
+STATUS FIELDS: The flat table has "load_status" (draft, posted, in_transit, completed, cancelled) and "quote_status" (draft, sent, accepted, rejected, expired). Use "load_status" for load-related statuses like "cancelled loads" or "completed loads". "status" field also exists and equals load_status.
 ROUTES: No "route" field. Use groupBy ["collection_town", "delivery_town"] or ["collection_city", "delivery_city"].
 VEHICLE TYPES: Use exact enum values: small_van, medium_van, large_van, luton, rigid_7_5t, rigid_18t, rigid_26t, articulated. For "small van" use value "small_van".
 `
@@ -69,10 +70,12 @@ Field mapping guide (use the column name that exists in the list above):
 - Route origin (town level) → "collection_town"
 - Route destination (city level) → "delivery_city"
 - Route destination (town level) → "delivery_town"
-- Driver → "driver_name" (or "name" if driver_name missing)
+- Driver → "driver_name" (or "name" if driver_name missing). Use operator "contains" for name searches.
+- Load poster → "load_poster_name". Use operator "contains" for name searches.
 - Vehicle type → "vehicle_type" (or "requested_vehicle_type")
 - Date of collection → "collection_date"
 - Load identifier → "load_id"
+- Load status (cancelled, completed, etc.) → "load_status" (or "status" which equals load_status)
 - Quote status → "quote_status" (NOTE: loads_and_quotes dataSource already filters for accepted quotes, do NOT add extra quote_status filters)`
   }
 
@@ -99,6 +102,7 @@ IMPORTANT NOTES:
 - The "loads_and_quotes" dataSource ALREADY filters for accepted quotes only. Do NOT add filters for quote_status or status = accepted.
 - There is NO "route" field. Routes = groupBy collection + delivery fields.
 - Filters use "operator" (NOT "op"). Include/exclude use value arrays.
+- DATA CLEANLINESS: ETL pre-cleans data. Location values are canonical UK city/town names (e.g. "Birmingham", "London"). Numbers are clean decimals (no £, km, kg suffixes). Dates are ISO format (YYYY-MM-DD). Use exact values in filters (e.g. value "Birmingham" not "Birmigham").
 
 Rules:
 - Use ONLY fields from the data column list above. Do not invent field names.
@@ -110,7 +114,10 @@ Rules:
 - For "most active drivers": dataSource "loads_and_quotes", groupBy:["driver_name"], aggregations:[{"op":"count","alias":"job_count"}], sort:[{"field":"job_count","dir":"desc"}].
 - For "jobs from city X": dataSource "loads_and_quotes", filters:[{"field":"collection_city","operator":"eq","value":"X"}].
 - For "jobs starting from date Y" (YYYY-MM-DD): dataSource "loads_and_quotes", filters:[{"field":"collection_date","operator":"gte","value":"Y"}].
-- For "jobs by driver Z": dataSource "loads_and_quotes", filters:[{"field":"driver_name","operator":"eq","value":"Z"}].
+- For "jobs by driver Z" or "show me Z's loads": dataSource "loads_and_quotes", filters:[{"field":"driver_name","operator":"contains","value":"Z"}]. Use "contains" (not "eq") for person name filters so partial/approximate matches work. Also check load_poster_name if the person might be a poster.
+- For "cancelled routes" / "completed routes": filter on load_status (NOT status or quote_status). Example: filters:[{"field":"load_status","operator":"eq","value":"cancelled"}].
+- For "most frequent X" / "top X": Use groupBy + count aggregation + sort desc + limit 10 (default to 10 unless user specifies). Do NOT set limit:1 just because "most" is singular.
+- When the user asks for multiple metrics (e.g. "revenue AND top poster"), include multiple aggregations: e.g. [{"op":"count","alias":"job_count"},{"op":"sum","field":"quoted_price","alias":"total_revenue"},{"op":"mode","field":"load_poster_name","alias":"top_poster"}].
 - For follow-ups, modify previousTableInstruction.
 - If the question is ambiguous or outside scope, respond with text only.
 

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { TransformConfig } from '../types/transformConfig.js'
 
 function extractJsonObject(text: string): string | null {
   const start = text.indexOf('{')
@@ -238,6 +239,10 @@ LOCATION EXCLUSION - "remove X loads" = exclude rows with X in ANY location fiel
 - "remove London loads" → [{"field":"collection_town","op":"contains","value":"London","type":"exclusion","label":"exclude collection_town London"}, {"field":"collection_city","op":"contains","value":"London","type":"exclusion","label":"exclude collection_city London"}, {"field":"delivery_town","op":"contains","value":"London","type":"exclusion","label":"exclude delivery_town London"}, {"field":"delivery_city","op":"contains","value":"London","type":"exclusion","label":"exclude delivery_city London"}]
 - "exclude Manchester loads" → same pattern for Manchester. NEVER use has_any_null or != for "remove X loads".
 
+LOCATION INCLUSION - "I only want London loads" / "include London loads" = INCLUDE rows where place appears in ANY location field. Return 4 rules with "orGroup":1 so they are OR'd (not AND'd):
+- "I only want London loads" → [{"field":"collection_town","op":"contains","value":"London","type":"inclusion","orGroup":1,"label":"collection_town contains London"}, {"field":"collection_city","op":"contains","value":"London","type":"inclusion","orGroup":1,"label":"collection_city contains London"}, {"field":"delivery_town","op":"contains","value":"London","type":"inclusion","orGroup":1,"label":"delivery_town contains London"}, {"field":"delivery_city","op":"contains","value":"London","type":"inclusion","orGroup":1,"label":"delivery_city contains London"}]
+- CRITICAL: Without orGroup:1, the 4 rules would be AND'd and almost no rows would match (a row must have London in ALL 4 fields). With orGroup:1, rows match if London is in ANY of the 4 fields.
+
 SINGLE RULES - return one-element array:
 - "exclude cancelled loads" → [{"field":"status","op":"=","value":"cancelled","type":"exclusion","label":"exclude cancelled"}]
 - "loads with collection time" → [{"field":"collection_time","op":"is_not_null","type":"inclusion","label":"collection_time present"}]
@@ -270,7 +275,16 @@ Return ONLY a JSON array, no other text.`
     return parsed
       .filter((p) => p?.op)
       .filter((p) => p.op === 'has_any_null' || p.op === 'has_no_nulls' || p.field)
-      .map((p) => ({ structured: { field: p.field, op: p.op, value: p.value, type: p.type }, label: p.label || rule }))
+      .map((p) => ({
+        structured: {
+          field: p.field,
+          op: p.op,
+          value: p.value,
+          type: p.type,
+          ...(p.orGroup != null && { orGroup: p.orGroup }),
+        },
+        label: p.label || rule,
+      }))
   } catch (err) {
     console.error('[claude] filter interpret failed:', err instanceof Error ? err.message : String(err))
     return []
@@ -421,5 +435,76 @@ Load-DriverVehicle (user said "vehicle ID" or "Vehicle ID"): use leftKey "alloca
     return parsed
   } catch {
     return null
+  }
+}
+
+/**
+ * Generate TransformConfig from schema + sample data.
+ * Claude analyzes field types and sample values to produce transformation rules.
+ * Used once when data is first ingested; config is then applied deterministically on each run.
+ */
+export async function claudeGenerateTransformConfig(
+  schemaMetadata: { entity: string; fields: { name: string; type: string; description?: string }[] }[],
+  sampleData: Record<string, Record<string, unknown>[]>
+): Promise<TransformConfig> {
+  const client = getClient()
+  if (!client) return {}
+
+  const schemaDesc = schemaMetadata
+    .map(
+      (e) =>
+        `${e.entity}: ${e.fields.map((f) => `${f.name} (${f.type})${f.description ? `: ${f.description}` : ''}`).join(', ')}`
+    )
+    .join('\n')
+
+  const sampleDesc = Object.entries(sampleData)
+    .map(([entity, rows]) => {
+      const sample = rows.slice(0, 5).map((r) => JSON.stringify(r))
+      return `${entity}: ${sample.join(' | ')}`
+    })
+    .join('\n')
+
+  const prompt = `You are an ETL data transformation config generator. Given a schema and sample rows, produce a transformation config so we can clean dirty data to canonical values.
+
+Schema (entity -> fields with type and description):
+${schemaDesc}
+
+Sample rows (first 5 per entity):
+${sampleDesc}
+
+Return a JSON object: { "entity": { "field": { "type": "..." , "stripSuffixes?: [...]", "referenceList?: [...]" } } }
+
+Transform rule types:
+- skip: enum fields (status, vehicle_type, etc.) - already handled by enum mapping
+- uuid: trim only
+- date: parse to YYYY-MM-DD (date_created, collection_date, delivery_date, completion_date)
+- datetime: parse to ISO 8601 (created_at, updated_at, collection_time, delivery_time)
+- number: strip £, GBP, km, kg; normalize comma-decimals. Use stripSuffixes: ["£","GBP"] for quoted_price, ["km"] for distance_km, ["kg"] for capacity_kg
+- integer: number_of_items
+- location_city: collection_city, delivery_city - fuzzy match to UK cities
+- location_town: collection_town, delivery_town - fuzzy match to UK towns
+- person_name: fleet_quoter_name, load_poster_name, name (driver)
+- email: email
+- phone: phone
+- registration: registration_number
+
+For location_city and location_town, you may omit referenceList (we use built-in UK lists).
+Return ONLY the JSON object, no other text.`
+
+  try {
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const text = msg.content.filter((c) => c.type === 'text').map((c) => (c as { text: string }).text).join('')
+    const jsonStr = extractJsonObject(text)
+    if (!jsonStr) return {}
+    const parsed = JSON.parse(jsonStr) as TransformConfig
+    if (typeof parsed !== 'object') return {}
+    return parsed
+  } catch (err) {
+    console.error('[claude] transform config failed:', err instanceof Error ? err.message : String(err))
+    return {}
   }
 }

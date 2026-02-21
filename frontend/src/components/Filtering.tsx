@@ -109,7 +109,12 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         newFilters.push({
           type: inferredType as 'inclusion' | 'exclusion',
           rule: rules.length > 1 ? (r.label || ruleText) : ruleText,
-          structured: { field: structured.field, op: structured.op, value: structured.value },
+          structured: {
+            field: structured.field,
+            op: structured.op,
+            value: structured.value,
+            ...(structured.orGroup != null && { orGroup: structured.orGroup }),
+          },
         })
       }
       if (newFilters.length > filters.length) {
@@ -196,7 +201,7 @@ export function Filtering({ sessionData, profile, onUpdate, onNext, onSkip, onSa
         <div className="bg-white p-6 rounded shadow-md-1">
           <h3 className="font-medium mb-2">Rules ({filters.length})</h3>
           <p className="text-xs text-[rgba(0,0,0,0.6)] mb-2">
-            Inclusion rules are AND&apos;d (rows must match all). Exclusion rules remove matching rows.
+            Inclusion rules are AND&apos;d (rows must match all). Rules like &quot;London loads&quot; are OR&apos;d across location fields. Exclusion rules remove matching rows.
           </p>
           <ul className="space-y-2">
             {filters.map((f, i) => {

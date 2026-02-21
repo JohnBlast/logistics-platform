@@ -4,6 +4,8 @@ import { runJoinsWithSteps } from './joinService.js'
 import { applyFilters, applyFiltersWithRuleEffects, validateFilterFields } from './filterService.js'
 import { validateEnumsInRows } from './enumValidation.js'
 import { applyEnumMappings } from './enumMappingService.js'
+import { applyTransformations } from './transformationService.js'
+import { buildMockedTransformConfig } from './transformConfigService.js'
 export interface ValidationSummary {
   rowsSuccessful: number
   rowsDropped: number
@@ -78,6 +80,11 @@ export function runValidation(
   quoteRows = applyEnumMappings(quoteRows, 'quote', enumMappings)
   loadRows = applyEnumMappings(loadRows, 'load', enumMappings)
   dvRows = applyEnumMappings(dvRows, 'driver_vehicle', enumMappings)
+
+  const transformConfig = profile.transformConfig ?? buildMockedTransformConfig()
+  quoteRows = applyTransformations(quoteRows, 'quote', transformConfig)
+  loadRows = applyTransformations(loadRows, 'load', transformConfig)
+  dvRows = applyTransformations(dvRows, 'driver_vehicle', transformConfig)
 
   const totalBefore = quoteRows.length + loadRows.length + dvRows.length
 

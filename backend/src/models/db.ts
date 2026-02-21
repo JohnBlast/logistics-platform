@@ -43,6 +43,12 @@ try {
 } catch {
   db.exec('ALTER TABLE profiles ADD COLUMN enumMappings TEXT DEFAULT "{}"')
 }
+// Migration: add transformConfig if missing
+try {
+  db.prepare('SELECT transformConfig FROM profiles LIMIT 1').get()
+} catch {
+  db.exec('ALTER TABLE profiles ADD COLUMN transformConfig TEXT')
+}
 
 // Seed default template if empty (T011)
 const count = db.prepare('SELECT COUNT(*) as c FROM profiles').get() as { c: number }

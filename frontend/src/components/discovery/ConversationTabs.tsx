@@ -83,7 +83,7 @@ export function ConversationTabs({
                   className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm whitespace-pre-wrap ${
                     m.role === 'user'
                       ? 'bg-primary text-white'
-                      : 'bg-black/6 text-[rgba(0,0,0,0.87)]'
+                      : 'bg-slate-100 border border-slate-200 text-[rgba(0,0,0,0.87)]'
                   }`}
                 >
                   {m.content}

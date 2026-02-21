@@ -89,4 +89,28 @@ describe('queryEngine', () => {
     expect(filtered).toHaveLength(2)
     expect(filtered.every((r) => r.b === 'x')).toBe(true)
   })
+
+  it('contains operator does partial string match (name search)', () => {
+    const rows = [
+      { name: 'Ahmed Smith', load_id: '1' },
+      { name: 'John Jones', load_id: '2' },
+      { name: 'Ahmad Khan', load_id: '3' },
+    ] as Record<string, unknown>[]
+    const filtered = applyFilters(rows, [
+      { field: 'name', operator: 'contains', value: 'Ahmed' },
+    ])
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0].name).toBe('Ahmed Smith')
+  })
+
+  it('contains operator is case-insensitive', () => {
+    const rows = [
+      { name: 'Ahmed Smith', load_id: '1' },
+      { name: 'John Jones', load_id: '2' },
+    ] as Record<string, unknown>[]
+    const filtered = applyFilters(rows, [
+      { field: 'name', operator: 'contains', value: 'ahmed' },
+    ])
+    expect(filtered).toHaveLength(1)
+  })
 })

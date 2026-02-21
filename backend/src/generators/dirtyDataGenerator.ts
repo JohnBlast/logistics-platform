@@ -4,16 +4,17 @@ import {
   LOAD_STATUS,
   VEHICLE_TYPES,
 } from '../models/schema.js'
+import {
+  UK_CITIES,
+  UK_CITIES_DIRTY,
+  UK_TOWNS,
+  UK_TOWNS_DIRTY,
+} from '../constants/ukLocations.js'
 
 /** Default batch size per "Add" action (used by simulate pipeline and ingestion) */
 export const QUOTE_COUNT = 100
 export const LOAD_COUNT = 50
 export const DRIVER_VEHICLE_COUNT = 50
-
-const UK_CITIES = ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow', 'Liverpool', 'Bristol', 'Sheffield', 'Edinburgh', 'Cardiff', 'Belfast', 'Newcastle', 'Nottingham', 'Southampton', 'Brighton', 'Leicester', 'Coventry', 'Hull', 'Bradford', 'Stoke']
-const UK_CITIES_DIRTY = ['london', 'MANCHESTER', 'Birmigham', 'Leeds ', 'Glasow', 'Lverpool', 'Bristol', 'Sheffeild', 'Edinbrugh', 'CArdiff', 'Belfst', 'Newcstle', 'Nottingam', 'Southhampton', 'Bighton', 'Leicster', 'Coventy', ' Hul ', 'Bradfrord', 'Stokee']
-const UK_TOWNS = ['Reading', 'Slough', 'Luton', 'Northampton', 'Derby', 'Oxford', 'Cambridge', 'Ipswich', 'Milton Keynes', 'Swindon', 'Peterborough', 'Exeter', 'Plymouth', 'Bournemouth', 'Blackpool', 'Preston', 'Burnley', 'S Blackburn', 'Bolton', 'Wigan', 'Warrington', 'Chester', 'Shrewsbury', 'Hereford', 'Gloucester', 'Salisbury', 'Portsmouth', 'Maidstone', 'Canterbury', 'Dartford']
-const UK_TOWNS_DIRTY = ['Reading', 'slough', 'LUTON', 'Nothampton', 'Derby', 'Oxfrord', 'Cambrige', 'Ipswich ', 'Milton Keyes', 'Swindn', 'Peterbrough', 'Exter', 'Plymoth', 'Bournmouth', 'Black pool', 'Preston', 'Burnely', 'S. Blackburn', 'Boltn', 'Wigan', 'Warrington', 'Chestre', 'Shrewbury', 'Hereford', 'Glouster', 'Salsbury', 'Portsmouh', 'Maidston', 'Canterbry', 'Dartfourth']
 
 const UK_FIRST_NAMES = ['James', 'John', 'David', 'Michael', 'Robert', 'Daniel', 'William', 'Thomas', 'Christopher', 'Matthew', 'Sarah', 'Emma', 'Lucy', 'Emily', 'Sophie', 'Hannah', 'Charlotte', 'Jessica', 'Laura', 'Rebecca', 'Mohammed', 'Ahmed', 'Ali', 'Omar', 'Liam', 'Noah', 'Oliver', 'George', 'Arthur', 'Harry']
 const UK_FIRST_DIRTY = ['james', 'JOHN', 'Davd', 'Micheal', 'Rober', 'Danial', 'Willaim', 'Thommas', 'Christoper', 'Mathew', 'Srah', 'Ema', 'Lucy', 'Emely', 'Sofie', 'Hanna', 'Charlote', 'Jesscia', 'Laua', 'Rebeca', 'Mohamed', 'Ahmad', 'Ali', 'Omar', 'Laim', 'Noa', 'Olivar', 'Geoge', 'Arhtur', 'Hary']

@@ -37,6 +37,19 @@ function resolveLoadDvLeftKey(key: string): string {
   return key
 }
 
+/** Vehicle ID keys to try when linking Load to Driver+Vehicle (handles different column naming) */
+const LOAD_VEHICLE_ID_KEYS = ['allocated_vehicle_id', 'vehicle_id', 'Vehicle ID']
+
+function getVehicleIdFromRow(row: Record<string, unknown>, leftKey: string): unknown {
+  let v = row[leftKey]
+  if (v != null) return v
+  for (const k of LOAD_VEHICLE_ID_KEYS) {
+    v = row[k]
+    if (v != null) return v
+  }
+  return null
+}
+
 /**
  * Join: Quote -> Load -> Driver+Vehicle
  * Rows are already mapped to target schema field names.
@@ -104,10 +117,13 @@ export function runJoinsWithSteps(
     const dvByVehicle = new Map<string, Record<string, unknown>>()
     const dvByDriver = new Map<string, Record<string, unknown>>()
     for (const dv of driverVehicleRows) {
-      const vid = dv.vehicle_id
-      const did = dv.driver_id
-      if (vid != null) dvByVehicle.set(String(vid), dv)
-      if (did != null) dvByDriver.set(String(did), dv)
+      const vid = dv.vehicle_id ?? dv['Vehicle ID']
+      const did = dv.driver_id ?? dv['Driver ID']
+      if (vid != null) {
+        const key = String(vid).trim().toLowerCase()
+        if (!dvByVehicle.has(key)) dvByVehicle.set(key, dv)
+      }
+      if (did != null) dvByDriver.set(String(did).trim().toLowerCase(), dv)
     }
     const leftKey = resolveLoadDvLeftKey(loadDvJoin.leftKey)
     const fallbackKey = loadDvJoin.fallbackKey ?? 'driver_id'
@@ -115,11 +131,12 @@ export function runJoinsWithSteps(
     const emptyDv = Object.fromEntries(dvColumns.map((c) => [c, null]))
     const nextRows: Record<string, unknown>[] = []
     for (const r of currentRows) {
-      const vehicleId = r[leftKey]
-      const driverId = r[fallbackKey]
+      const vehicleId = getVehicleIdFromRow(r, leftKey)
+      const driverId = r[fallbackKey] ?? r['Driver ID']
+      const vidKey = vehicleId != null ? String(vehicleId).trim().toLowerCase() : null
       const dv =
-        (vehicleId != null && dvByVehicle.get(String(vehicleId))) ||
-        (driverId != null && dvByDriver.get(String(driverId)))
+        (vidKey && dvByVehicle.get(vidKey)) ||
+        (driverId != null && dvByDriver.get(String(driverId).trim().toLowerCase()))
       nextRows.push(dv ? { ...r, ...dv } : { ...r, ...emptyDv })
     }
     currentRows = nextRows

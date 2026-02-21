@@ -22,10 +22,13 @@ export interface StructuredFilter {
   op: '=' | '!=' | 'contains' | 'in' | 'is_null' | 'is_not_null' | 'has_any_null' | 'has_no_nulls' | '<' | '<=' | '>' | '>='
   value?: unknown
   type?: 'inclusion' | 'exclusion'
+  /** When set, inclusion rules with the same orGroup are OR'd (row matches if ANY matches). Used for "London loads" = place in any location field. */
+  orGroup?: number
 }
 
 /**
  * Apply filter rules to flat table. Order: inclusion first, then exclusion (C-11).
+ * Inclusion rules with orGroup are OR'd within the group (place-in-any-location pattern).
  */
 export function applyFilters(
   rows: Record<string, unknown>[],
@@ -39,9 +42,14 @@ export function applyFilters(
   let result = rows
 
   if (inclusions.length > 0) {
-    result = result.filter((row) =>
-      inclusions.every((rule) => matchesRule(row, rule))
-    )
+    const { andRules, orGroups } = groupInclusionsByOrGroup(inclusions)
+    result = result.filter((row) => {
+      if (!andRules.every((rule) => matchesRule(row, rule))) return false
+      for (const group of orGroups) {
+        if (!group.some((rule) => matchesRule(row, rule))) return false
+      }
+      return true
+    })
   }
 
   if (exclusions.length > 0) {
@@ -51,6 +59,24 @@ export function applyFilters(
   }
 
   return result
+}
+
+function groupInclusionsByOrGroup(inclusions: FilterRule[]): { andRules: FilterRule[]; orGroups: FilterRule[][] } {
+  const andRules: FilterRule[] = []
+  const orGroupsMap = new Map<number, FilterRule[]>()
+  for (const r of inclusions) {
+    const s = r.structured as StructuredFilter | undefined
+    const g = s?.orGroup
+    if (g != null && typeof g === 'number') {
+      const arr = orGroupsMap.get(g) ?? []
+      arr.push(r)
+      orGroupsMap.set(g, arr)
+    } else {
+      andRules.push(r)
+    }
+  }
+  const orGroups = [...orGroupsMap.values()]
+  return { andRules, orGroups }
 }
 
 export interface RuleEffect {
@@ -70,20 +96,54 @@ export function applyFiltersWithRuleEffects(
   const effects: RuleEffect[] = []
   let current = rows
 
-  for (let i = 0; i < filters.length; i++) {
-    const rule = filters[i]
-    const type = (rule.type ?? 'exclusion') as 'inclusion' | 'exclusion'
+  const inclusions = filters.filter((f) => (f.type ?? 'exclusion') === 'inclusion')
+  const exclusions = filters.filter((f) => (f.type ?? 'exclusion') === 'exclusion')
+  const { andRules, orGroups } = groupInclusionsByOrGroup(inclusions)
+
+  // Build inclusion steps: each AND rule, then each OR group
+  const inclusionSteps: { rules: FilterRule[]; isOr: boolean; ruleLabel: string }[] = []
+  for (const r of andRules) {
+    inclusionSteps.push({ rules: [r], isOr: false, ruleLabel: r.rule })
+  }
+  for (const group of orGroups) {
+    const first = group[0]
+    const labels = group.map((r) => (r.structured as { field?: string } | undefined)?.field ?? '').filter(Boolean)
+    inclusionSteps.push({ rules: group, isOr: true, ruleLabel: labels.length ? `${labels[0]} contains ... (or ${labels.join(', ')})` : first.rule })
+  }
+
+  let incStepIdx = 0
+  for (const step of inclusionSteps) {
     const before = current.length
-    if (type === 'inclusion') {
-      const allInclusionsSoFar = filters.slice(0, i + 1).filter((f) => (f.type ?? 'exclusion') === 'inclusion')
-      current = current.filter((row) => allInclusionsSoFar.every((r) => matchesRule(row, r)))
+    if (step.isOr) {
+      current = current.filter((row) => step.rules.some((r) => matchesRule(row, r)))
     } else {
-      current = current.filter((row) => !matchesRule(row, rule))
+      current = current.filter((row) => step.rules.every((r) => matchesRule(row, r)))
     }
+    const effect = {
+      ruleIndex: incStepIdx < andRules.length ? filters.indexOf(andRules[incStepIdx]) : filters.indexOf(step.rules[0]),
+      rule: step.ruleLabel,
+      type: 'inclusion' as const,
+      before,
+      after: current.length,
+      excluded: before - current.length,
+    }
+    if (step.isOr && step.rules.length > 1) {
+      for (const r of step.rules) effects.push({ ...effect, ruleIndex: filters.indexOf(r) })
+    } else {
+      effects.push(effect)
+    }
+    incStepIdx++
+  }
+
+  // Apply all inclusions first (already done above), then exclusions
+  for (let i = 0; i < exclusions.length; i++) {
+    const rule = exclusions[i]
+    const before = current.length
+    current = current.filter((row) => !matchesRule(row, rule))
     effects.push({
-      ruleIndex: i,
+      ruleIndex: filters.indexOf(rule),
       rule: rule.rule,
-      type,
+      type: 'exclusion',
       before,
       after: current.length,
       excluded: before - current.length,
@@ -131,7 +191,7 @@ function matchesRule(row: Record<string, unknown>, rule: FilterRule): boolean {
       break
   }
 
-  if (val === undefined) return false
+  if (val == null) return false
   const valStr = String(val)
   const filterStr = String(s.value ?? '')
 
@@ -255,6 +315,9 @@ export function interpretFilterRules(nl: string): InterpretedRule[] {
   const placeLoads = tryRemovePlaceLoads(nl)
   if (placeLoads.length >= 1) return placeLoads
 
+  const includePlaceLoads = tryIncludePlaceLoads(nl)
+  if (includePlaceLoads.length >= 1) return includePlaceLoads
+
   const single = interpretFilterRule(nl)
   if (single) return [{ structured: single, label: nl }]
 
@@ -262,6 +325,15 @@ export function interpretFilterRules(nl: string): InterpretedRule[] {
 }
 
 const STATUS_VALUES = ['cancelled', 'rejected', 'completed', 'pending', 'draft', 'posted', 'in_transit', 'accepted']
+const VEHICLE_TYPE_NAMES = ['small_van', 'medium_van', 'large_van', 'luton', 'rigid_7_5t', 'rigid_18t', 'rigid_26t', 'articulated',
+  'small van', 'medium van', 'large van', 'rigid']
+
+function isNonPlaceValue(val: string): boolean {
+  if (STATUS_VALUES.includes(val)) return true
+  if (val.split(/\s+and\s+/i).every((w) => STATUS_VALUES.includes(w.trim()))) return true
+  const norm = val.replace(/\s+/g, '_').replace(/s$/, '')
+  return VEHICLE_TYPE_NAMES.some((vt) => norm === vt || val === vt || val === vt.replace(/_/g, ' '))
+}
 
 /** "remove London loads" / "exclude Manchester loads" -> exclude rows with place in ANY location field */
 function tryRemovePlaceLoads(nl: string): InterpretedRule[] {
@@ -270,10 +342,24 @@ function tryRemovePlaceLoads(nl: string): InterpretedRule[] {
   if (!m) return []
   const place = m[1].trim()
   if (!place || place.length < 2) return []
-  if (STATUS_VALUES.includes(place) || place.split(/\s+and\s+/i).every((w) => STATUS_VALUES.includes(w.trim()))) return []
+  if (isNonPlaceValue(place)) return []
   return LOCATION_FIELDS.map((field) => ({
     structured: { field, op: 'contains' as const, value: place, type: 'exclusion' as const },
     label: `exclude ${field} contains ${place}`,
+  }))
+}
+
+/** "I only want London loads" / "include London loads" / "show London loads" -> INCLUDE rows with place in ANY location field (OR) */
+function tryIncludePlaceLoads(nl: string): InterpretedRule[] {
+  const t = nl.toLowerCase().trim().replace(/\.$/, '')
+  const m = t.match(/^(?:i\s+)?(?:only\s+)?(?:want|include|show|keep)\s+(?:only\s+)?(?:the\s+)?([a-z0-9_\s]+?)\s+loads?\s*$/i)
+  if (!m) return []
+  const place = m[1].trim()
+  if (!place || place.length < 2) return []
+  if (isNonPlaceValue(place)) return []
+  return LOCATION_FIELDS.map((field) => ({
+    structured: { field, op: 'contains' as const, value: place, type: 'inclusion' as const, orGroup: 1 },
+    label: `${field} contains ${place}`,
   }))
 }
 
