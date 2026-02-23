@@ -21,7 +21,7 @@ ingestRouter.post('/upload', upload.single('file'), (req, res) => {
     if (e instanceof ParseError) {
       return res.status(400).json({ error: e.message })
     }
-    return res.status(500).json({ error: 'Failed to parse file' })
+    return res.status(422).json({ error: 'Failed to parse file' })
   }
 })
 
@@ -33,23 +33,23 @@ ingestRouter.post('/generate', (req, res) => {
 
   if (objectType === 'load') {
     const { rows, loadIds: ids } = generateLoads()
-    if (!rows.length) return res.status(500).json({ error: 'Generate returned no rows' })
+    if (!rows.length) return res.status(422).json({ error: 'Generate returned no rows' })
     return res.json({ headers: Object.keys(rows[0]), rows, loadIds: ids })
   }
 
   if (objectType === 'quote') {
     const ids = loadIds && loadIds.length ? loadIds : generateLoads().loadIds
     const quotes = generateQuotes(ids)
-    if (!quotes.length) return res.status(500).json({ error: 'Generate returned no quotes' })
+    if (!quotes.length) return res.status(422).json({ error: 'Generate returned no quotes' })
     return res.json({ headers: Object.keys(quotes[0]), rows: quotes })
   }
 
   if (objectType === 'driver_vehicle') {
     const lr = loadRows && loadRows.length ? loadRows : generateLoads().rows
-    if (!lr.length) return res.status(500).json({ error: 'Generate returned no load rows' })
+    if (!lr.length) return res.status(422).json({ error: 'Generate returned no load rows' })
     const linkLoadsToVehicles = req.body.linkLoadsToVehicles !== false
     const { driverVehicleRows, updatedLoadRows } = generateDriverVehicle(lr, linkLoadsToVehicles)
-    if (!driverVehicleRows.length) return res.status(500).json({ error: 'Generate returned no driver+vehicle rows' })
+    if (!driverVehicleRows.length) return res.status(422).json({ error: 'Generate returned no driver+vehicle rows' })
     return res.json({
       headers: Object.keys(driverVehicleRows[0]),
       rows: driverVehicleRows,

@@ -70,7 +70,8 @@ export function createProfile(data: {
     `INSERT INTO profiles (id, name, description, status, dataModelVersion, aiMode, mappings, joins, filters, createdAt, updatedAt)
      VALUES (?, ?, ?, 'draft', ?, ?, '{}', '[]', '[]', ?, ?)`
   ).run(id, data.name.trim(), data.description ?? null, data.dataModelVersion, data.aiMode, now, now)
-  const profile = getProfile(id)!
+  const profile = getProfile(id)
+  if (!profile) throw new Error(`Failed to retrieve profile after insert (id=${id})`)
   return profile
 }
 
@@ -139,9 +140,12 @@ export function setProfileActive(id: string): Profile | null {
     throw new Error('Only Draft profiles can be activated')
   }
   const now = new Date().toISOString()
-  db.prepare("UPDATE profiles SET status = 'archive' WHERE status = 'active'").run()
-  db.prepare('UPDATE profiles SET status = ? WHERE id = ?').run('active', id)
-  db.prepare('UPDATE profiles SET updatedAt = ? WHERE id = ?').run(now, id)
+  const activate = db.transaction(() => {
+    db.prepare("UPDATE profiles SET status = 'archive' WHERE status = 'active'").run()
+    db.prepare('UPDATE profiles SET status = ? WHERE id = ?').run('active', id)
+    db.prepare('UPDATE profiles SET updatedAt = ? WHERE id = ?').run(now, id)
+  })
+  activate()
   return getProfile(id)
 }
 
@@ -164,7 +168,7 @@ export function duplicateProfile(id: string): Profile | null {
     aiMode: source.aiMode,
   }
   const profile = createProfile(data)
-  updateProfile(profile.id, {
+  return updateProfile(profile.id, {
     mappings: source.mappings,
     lockedMappings: source.lockedMappings,
     enumMappings: source.enumMappings,
@@ -173,7 +177,6 @@ export function duplicateProfile(id: string): Profile | null {
     filters: source.filters,
     name: `${source.name} (copy)`,
   })
-  return getProfile(profile.id)
 }
 
 function rowToProfile(row: Record<string, unknown>): Profile {

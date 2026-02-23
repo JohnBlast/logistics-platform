@@ -234,9 +234,12 @@ export function Mapping({
             <button
               type="button"
               onClick={() => setCollapsed((c) => ({ ...c, [key]: !c[key] }))}
+              aria-expanded={!isCollapsed}
               className="flex items-center gap-2 w-full text-left font-medium mb-2"
             >
-              <span>{isCollapsed ? '▶' : '▼'}</span>
+              <svg className={`w-4 h-4 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
               {label}
               <span className="text-[rgba(0,0,0,0.6)] text-sm font-normal">
                 ({countMapped(m, allFields)}/{allFields.length} mapped)
@@ -333,6 +336,7 @@ export function Mapping({
                             onClick={() => toggleLock(key, field)}
                             className={`p-1 rounded ${locked[field] ? 'text-amber-600 bg-amber-100' : 'text-[rgba(0,0,0,0.38)] hover:text-[rgba(0,0,0,0.6)]'}`}
                             title={locked[field] ? 'Unlock' : 'Lock mapping'}
+                            aria-label={locked[field] ? `Unlock mapping for ${field}` : `Lock mapping for ${field}`}
                           >
                             {locked[field] ? '🔒' : '🔓'}
                           </button>

@@ -116,7 +116,7 @@ export function Discovery() {
       updateConversation(convId, {
         messages: [
           ...(getConversation(convId)?.messages ?? []),
-          { role: 'assistant' as const, content: msg },
+          { role: 'assistant' as const, content: msg, isError: true },
         ],
       })
       refreshSidebar()

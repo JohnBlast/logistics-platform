@@ -16,10 +16,13 @@ export function MainLayout({ children }: MainLayoutProps) {
           <button
             type="button"
             onClick={() => setEtlOpen(!etlOpen)}
+            aria-expanded={etlOpen}
             className="flex items-center justify-between w-full px-4 py-3 text-left text-[rgba(0,0,0,0.87)] hover:bg-black/4 transition-colors"
           >
             <span className="font-medium text-[15px]">ETL</span>
-            <span className="text-[rgba(0,0,0,0.6)]">{etlOpen ? '▼' : '▶'}</span>
+            <svg className={`w-4 h-4 text-[rgba(0,0,0,0.6)] transition-transform ${etlOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
           {etlOpen && (
             <div className="mt-1">

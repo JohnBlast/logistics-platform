@@ -37,6 +37,7 @@ export function FilterPopover({
   const [topBottom, setTopBottom] = useState<'top' | 'bottom'>('top')
   const [nVal, setNVal] = useState<string>('10')
   const popRef = useRef<HTMLDivElement>(null)
+  const [adjustedLeft, setAdjustedLeft] = useState<number | null>(null)
 
   const numeric = isNumericColumn(values, sampleNum)
   const distinctVals = [...new Set(values)].slice(0, 100)
@@ -50,6 +51,17 @@ export function FilterPopover({
     document.addEventListener('click', h)
     return () => document.removeEventListener('click', h)
   }, [anchorEl, onClose])
+
+  // Adjust position if popover would overflow viewport
+  useEffect(() => {
+    if (!popRef.current || !anchorEl) return
+    const popRect = popRef.current.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const margin = 8
+    if (popRect.right > viewportWidth - margin) {
+      setAdjustedLeft(Math.max(margin, viewportWidth - popRect.width - margin))
+    }
+  }, [anchorEl])
 
   if (!anchorEl) return null
 
@@ -100,7 +112,7 @@ export function FilterPopover({
     <div
       ref={popRef}
       className="fixed z-[9999] bg-white rounded-lg shadow-lg border border-black/12 py-3 min-w-[220px] max-w-[320px] max-h-[360px] overflow-y-auto"
-      style={{ left: rect.left, top: rect.bottom + 4 }}
+      style={{ left: adjustedLeft ?? rect.left, top: rect.bottom + 4 }}
     >
       <div className="px-3 pb-2 border-b border-black/10 mb-2">
         <div className="flex gap-1 text-xs">

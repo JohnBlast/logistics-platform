@@ -36,7 +36,7 @@ app.get('/api/health/ai', (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY
   const base = { claudeAvailable: isClaudeAvailable() }
   const debug = req.query.debug === '1'
-  res.json(debug ? { ...base, keyPresent: !!key, keyPrefix: key?.slice(0, 10) + '...' || null } : base)
+  res.json(debug ? { ...base, keyPresent: !!key } : base)
 })
 
 app.listen(PORT, () => {

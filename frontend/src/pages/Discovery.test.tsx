@@ -25,7 +25,7 @@ describe('Discovery', () => {
         </PipelineOutputProvider>
       </MemoryRouter>
     )
-    expect(await screen.findByText(/Add data and run pipeline in ETL to query/i)).toBeDefined()
+    expect(await screen.findByText(/Ask questions about your logistics data/i)).toBeDefined()
     expect(screen.getByText(/Go to Simulate Pipeline/i)).toBeDefined()
   })
 })

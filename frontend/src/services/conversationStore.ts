@@ -7,6 +7,7 @@ export const MAX_BOOKMARKS = 2
 export interface StoredMessage {
   role: 'user' | 'assistant'
   content: string
+  isError?: boolean
 }
 
 export interface StoredConversation {

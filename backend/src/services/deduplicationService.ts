@@ -37,7 +37,7 @@ export function deduplicate(
       continue
     }
     if (updatedAt == null || updatedAt === '') {
-      warnings.push(`${objectType}: row ${i + 1} missing ${updatedAtField}, excluded from dedup (C-3)`)
+      warnings.push(`${objectType}: row ${i + 1} missing ${updatedAtField}, kept as-is (C-3)`)
       byId.set(String(id), row as Record<string, unknown>) // keep first if no updated_at
       continue
     }

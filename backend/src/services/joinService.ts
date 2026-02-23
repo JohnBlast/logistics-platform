@@ -97,6 +97,7 @@ export function runJoinsWithSteps(
       const row = { ...q, ...load }
       if (q.status != null) (row as Record<string, unknown>).quote_status = q.status
       if (load.status != null) (row as Record<string, unknown>).load_status = load.status
+      delete (row as Record<string, unknown>).status
       currentRows.push(row)
     }
     steps.push({

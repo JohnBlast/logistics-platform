@@ -147,7 +147,8 @@ Return a single number 0-1.`
     const num = parseFloat(text.replace(/[^\d.]/g, ''))
     if (Number.isFinite(num) && num >= 0 && num <= 1) return Math.round(num * 100) / 100
     return 0.5
-  } catch {
+  } catch (err) {
+    console.error('[claude] scoreMappingConfidence failed:', err instanceof Error ? err.message : String(err))
     return 0.5
   }
 }

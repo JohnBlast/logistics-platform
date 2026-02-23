@@ -34,7 +34,7 @@ export function applyEnumMappings(
       } else if (validValues.includes(str.trim().toLowerCase() as never)) {
         out[field] = str.trim().toLowerCase()
       } else {
-        const fuzzy = fuzzyMatchEnum(str, validValues as unknown as string[])
+        const fuzzy = fuzzyMatchEnum(str, [...validValues])
         out[field] = fuzzy // null only if truly unmatchable
       }
     }

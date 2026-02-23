@@ -103,21 +103,25 @@ export function ConversationSidebar({ currentId, onSelect, onRefresh, isGenerati
                       </svg>
                     </span>
                   )}
-                  <span
+                  <button
+                    type="button"
                     onClick={(e) => handleBookmark(e, c.id, c.bookmarked)}
-                    className={`shrink-0 ${c.bookmarked ? 'text-amber-500' : 'text-[rgba(0,0,0,0.38)] opacity-0 group-hover:opacity-100'}`}
+                    aria-label={c.bookmarked ? 'Unbookmark conversation' : 'Bookmark conversation'}
+                    className={`shrink-0 ${c.bookmarked ? 'text-amber-500' : 'text-[rgba(0,0,0,0.38)] opacity-40 group-hover:opacity-100 focus:opacity-100'}`}
                     title={c.bookmarked ? 'Unbookmark' : canBookmark() || c.bookmarked ? 'Bookmark (max 2)' : `Maximum ${MAX_BOOKMARKS} bookmarks`}
                   >
                     {c.bookmarked ? '★' : '☆'}
-                  </span>
-                  <span className="flex-1 truncate">{c.title}</span>
-                  <span
+                  </button>
+                  <span className="flex-1 truncate" title={c.title}>{c.title}</span>
+                  <button
+                    type="button"
                     onClick={(e) => handleDeleteClick(e, c.id)}
-                    className="shrink-0 text-[rgba(0,0,0,0.38)] hover:text-red-600 opacity-0 group-hover:opacity-100 px-1"
+                    aria-label="Delete conversation"
+                    className="shrink-0 text-[rgba(0,0,0,0.38)] hover:text-red-600 focus:text-red-600 opacity-40 group-hover:opacity-100 focus:opacity-100 px-1"
                     title="Delete"
                   >
                     ×
-                  </span>
+                  </button>
                 </button>
               </li>
             ))}

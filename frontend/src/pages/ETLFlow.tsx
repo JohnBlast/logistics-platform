@@ -194,11 +194,14 @@ export function ETLFlow() {
             const isActive = step === s
             const isComplete = status === 'ok'
             const isSkipped = status === 'skipped'
+            const statusLabel = isActive ? 'current' : isComplete ? 'completed' : isSkipped ? 'skipped' : status === 'error' ? 'needs attention' : 'pending'
             return (
               <div key={s} className="flex items-center shrink-0">
                 <button
                   type="button"
                   onClick={() => setStep(s)}
+                  aria-label={`${STEP_LABELS[s]} — ${statusLabel}`}
+                  aria-current={isActive ? 'step' : undefined}
                   className={`flex items-center gap-2 px-4 py-3 rounded-lg transition-all ${
                     isActive
                       ? 'bg-primary text-white shadow-md-2 scale-105'
