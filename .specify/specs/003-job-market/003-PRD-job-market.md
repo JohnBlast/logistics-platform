@@ -84,10 +84,10 @@ A simulated user role that generates jobs and evaluates quotes.
 
 1. Fleet Operator navigates to Job Market from the sidebar
 2. Fleet Operator sees a job board listing all posted loads by multiple load posters (collection city, delivery city, distance, required vehicle type, ADR requirement)
-3. Fleet Operator selects a job to view details
-4. System displays a UK map showing: vehicle positions (pins), collection point (pin), delivery point (pin), straight-line from nearest vehicle to collection (with distance/ETA popup), and straight-line from collection to delivery (with distance/time popup)
+3. Fleet Operator selects a job to view details (from table or by clicking a load pin on the map)
+4. System displays a UK map showing: vehicle positions (blue pins), collection point (green pin), delivery point (red pin), load pins at collection cities (orange), straight-line from nearest vehicle to collection, and straight-line from collection to delivery
 5. System displays a recommended price range based on scoring signals
-6. Fleet Operator fills in quote: price (£), selects vehicle and driver (system auto-flags ADR status), confirms vehicle type
+6. Fleet Operator fills in quote manually — or clicks "Auto-fill" to have the system blindly recommend the best vehicle, driver, and price
 7. Fleet Operator submits quote
 8. System calculates ETA from selected vehicle's city to collection city
 9. Quote appears in the Fleet Operator's quote history with status "sent"
@@ -101,12 +101,14 @@ A simulated user role that generates jobs and evaluates quotes.
 **Flow:**
 
 1. Fleet Operator submits a quote (from Journey 1)
-2. System scores the quote against acceptance metrics (price competitiveness, ETA, ADR match, fleet rating, vehicle type match)
-3. System either accepts or rejects the quote
-4. If accepted: Load status changes to "in_transit", quote status changes to "accepted", Fleet Operator sees confirmation
-5. If rejected: Quote status changes to "rejected", Fleet Operator sees rejection with feedback on which metrics fell short
+2. System checks ZOPA gates (max budget, acceptable vehicle types) — instant rejection if outside zone
+3. System scores the quote against acceptance metrics (price competitiveness, ETA, fleet rating, vehicle type match)
+4. System either accepts or rejects the quote with plain English feedback
+5. If accepted: Load status changes to "in_transit", quote status changes to "accepted", Fleet Operator sees congratulatory message with score breakdown
+6. If rejected: Quote status changes to "rejected", Fleet Operator sees specific improvement areas (e.g. "your price was too high", "your ETA was too late")
+7. System reveals competing quotes (price, vehicle type, ETA, scores) so the Fleet Operator understands the competitive landscape
 
-**Outcome:** Fleet Operator understands whether their bid won and why.
+**Outcome:** Fleet Operator understands whether their bid won, why, and how they compared to competitors.
 
 ### Journey 3: Load Poster Generates Jobs
 
@@ -154,9 +156,12 @@ A simulated user role that generates jobs and evaluates quotes.
 ### Job Board
 
 - System shall display all loads with status "posted" in a list/table
-- System shall show per job: collection city, delivery city, distance (km), required vehicle type, ADR requirement, collection time, number of existing quotes
+- System shall show per job: collection city, delivery city, distance (km), required vehicle type, ADR requirement, collection time, max budget, number of existing quotes
 - System shall allow Fleet Operators to select a job to view details and map
 - System shall update the job board when new jobs are generated
+- System shall provide a Table/Map view toggle in the Operations tab
+- System shall display rich formatting: ADR badge, quote count pill badges (colour-coded by count), bold budget formatting
+- System shall provide search filtering and pagination (25 per page, max 50)
 
 ### Quote Submission
 
@@ -165,39 +170,81 @@ A simulated user role that generates jobs and evaluates quotes.
 - System shall display the recommended price range before submission
 - System shall prevent quoting if Fleet Operator has no vehicles, drivers, or price
 - System shall block quote submission if the job requires ADR and the selected driver does not have ADR certification
+- System shall validate quoted_price is a positive number (reject NaN and zero/negative values)
+- System shall warn before submission if price exceeds the poster's max budget or vehicle is outside acceptable types (ZOPA pre-submission hints)
+
+### Auto-Recommend
+
+- System shall provide an "Auto-fill" button that blindly recommends the best vehicle, driver, and price
+- Recommendation is **blind** — it does not look at competing quotes or simulated bids
+- Vehicle selection: filters to acceptable types, prefers exact type match, then sorts by proximity to collection city (haversine distance)
+- Driver selection: prefers the vehicle's assigned driver (if ADR-compatible), else the best available driver (ADR-certified if required)
+- Price: uses the recommender service mid-range price
+- Returns reasoning strings explaining each choice
 
 ### Quote Recommender (Rule-Based)
 
 - System shall calculate a recommended price range based on: distance (km), required vehicle type, ADR requirement, number of competing quotes, fleet rating
-- System shall display the recommendation as a price range (min–max £)
+- System shall display the recommendation as a price range (min–mid–max £) with scoring signals
 - System shall update the recommendation when the user selects a different vehicle type
+
+### ZOPA (Zone of Possible Agreement)
+
+Each generated load includes poster-defined boundaries:
+
+- **max_budget**: Maximum price the poster will pay (reservation price). Quotes exceeding this are instantly rejected
+- **acceptable_vehicle_types**: Vehicle types the poster will accept (required type + 1-2 larger alternatives). Vehicles outside this list are instantly rejected
+- **collection_window_minutes**: Timing flexibility (15, 30, 45, or 60 minutes) used for ETA scoring grace period
+
+These fields create hard pre-scoring gates. If a quote falls outside the ZOPA, it is rejected before composite scoring.
 
 ### Quote Acceptance (Scoring)
 
-- System shall score each submitted quote against: price competitiveness (relative to other quotes and distance), ETA to collection, fleet rating, vehicle type match
-- System shall accept or reject the quote based on the composite score
-- System shall provide feedback on rejection (which metrics fell short)
-- System shall rejects unrealistic quotes (zero, too low, too high, and distance from vehicle to collection time is too long)
+- System shall score each submitted quote using a 4-signal composite score:
+  - **price_score** (weight 0.40): Budget-aware when max_budget exists, else benchmark-based
+  - **eta_score** (weight 0.25): Uses collection_window_minutes as grace period
+  - **fleet_rating_score** (weight 0.15): `fleet_rating / 5.0`
+  - **vehicle_match** (weight 0.20): Gradient scoring based on vehicle size match or position in acceptable list
+- Acceptance thresholds: sole bidder >= 0.60, multi-quote >= 0.70
+- System shall provide plain English feedback on acceptance/rejection explaining what to improve
+- System shall reject unrealistic quotes (zero, too low, too high, excessive ETA)
+- Simulated competitor fleets are scored with a neutral 3.0 rating (not the user's fleet rating)
+
+### Competing Quotes & Feedback
+
+- System shall generate 1-3 simulated competing quotes for ~60% of generated jobs
+- After submission, system shall reveal competing quotes (price, vehicle type, ETA, score breakdown)
+- System shall display a plain English feedback message explaining the result:
+  - Accepted: congratulatory message with score percentage and key strengths
+  - Rejected: specific improvement areas (price too high, ETA too late, fleet rating, vehicle mismatch)
+  - ZOPA rejection: clear message about which boundary was exceeded
 
 ### Job Generation
 
 - System shall generate jobs with randomised parameters from the UK hubs lookup
 - System shall generate realistic distance values using Haversine formula between collection and delivery cities
-- System shall randomly assign vehicle type requirements and ADR requirements
+- System shall randomly assign vehicle type requirements and ADR requirements (30% chance)
+- System shall generate ZOPA fields: max_budget (1.0-1.5x base price), acceptable_vehicle_types (required + 1-2 larger), collection_window_minutes (15-60)
+- System shall auto-generate 20 jobs + 10 vehicles/drivers on first load when the board is empty
 
 ### Fleet Management
 
 - System shall allow creating and generating vehicles with: type, registration, capacity, current city
 - System shall allow creating and generating drivers with: name, ADR certification
 - System shall allow assigning drivers to vehicles
-- System shall display the fleet profile: company name, total jobs completed, rating, driver count, vehicle count
+- System shall display the fleet profile: company name, total jobs completed, rating (editable), driver count, vehicle count
+- System shall allow deleting individual quotes from history
 
 ### Map
 
 - System shall render a Leaflet + OpenStreetMap map bounded to the UK
-- System shall display pins for vehicle positions, collection points, and delivery points
-- System shall draw straight-line polylines between: vehicle → collection, collection → delivery
-- System shall show popups on lines with distance (km) and estimated time (minutes)
+- System shall display pins for vehicle positions (blue circles), collection points (green squares), and delivery points (red squares)
+- System shall display orange load pins at collection cities, grouped by city, clickable to select jobs
+- System shall draw straight-line polylines between: vehicle → collection (dashed blue), collection → delivery (solid green)
+- System shall highlight the nearest vehicle to the selected job's collection city
+- System shall show tooltips on hover with job/vehicle details
+- System shall support a full-height map view (70vh) with a floating quote panel for the selected job
+- System shall show polylines on hover over load pins (collection → delivery routes)
 
 ---
 
@@ -209,7 +256,9 @@ All entities extend or reuse the shared platform data model. **Golden source:** 
 
 A shipping job posted by a Load Poster.
 
-**Fields (existing):** `load_id`, `collection_town`, `collection_city`, `collection_time`, `collection_date`, `delivery_town`, `delivery_city`, `delivery_time`, `delivery_date`, `distance_km`, `status`, `load_poster_name`, `allocated_vehicle_id`, `driver_id`, `number_of_items`, `created_at`, `updated_at`
+**Fields (existing):** `load_id`, `collection_town`, `collection_city`, `collection_time`, `collection_date`, `delivery_town`, `delivery_city`, `delivery_time`, `delivery_date`, `distance_km`, `status`, `load_poster_name`, `allocated_vehicle_id`, `driver_id`, `number_of_items`, `adr_required`, `required_vehicle_type`, `created_at`, `updated_at`
+
+**ZOPA fields (new):** `max_budget` *(poster's reservation price)*, `acceptable_vehicle_types` *(vehicle types the poster will accept)*, `collection_window_minutes` *(timing flexibility in minutes)*
 
 **Job Market usage:** `collection_city` and `delivery_city` map to the static UK hubs lookup for lat/lng at runtime. `distance_km` is calculated via Haversine at generation time. Status flow: `posted` → `in_transit` → `completed`.
 
@@ -412,11 +461,21 @@ A static constant mapping ~30-35 UK town/city names to `{ lat, lng }` coordinate
 ```json
 {
   "quote_id": "uuid",
-  "status": "sent",
+  "load_id": "uuid",
+  "status": "accepted",
   "eta_to_collection": 95,
   "offered_vehicle_type": "rigid_18t",
   "adr_certified": true,
-  "recommended_price": { "min": 380.00, "max": 520.00 }
+  "recommended_price": { "min": 380.00, "max": 520.00 },
+  "score_breakdown": {
+    "price_score": 0.82,
+    "eta_score": 0.75,
+    "fleet_rating_score": 0.84,
+    "vehicle_match": 1.0,
+    "composite_score": 0.83
+  },
+  "feedback": "Congratulations! Your quote was accepted as the best out of 2 competing bids.",
+  "competing_quotes": 1
 }
 ```
 
@@ -457,7 +516,7 @@ A static constant mapping ~30-35 UK town/city names to `{ lat, lng }` coordinate
 
 ```json
 {
-  "recommended_price": { "min": 380.00, "max": 520.00 },
+  "recommended_price": { "min": 380.00, "mid": 450.00, "max": 520.00 },
   "signals": {
     "distance_km": 340.2,
     "vehicle_type": "rigid_18t",
@@ -467,6 +526,56 @@ A static constant mapping ~30-35 UK town/city names to `{ lat, lng }` coordinate
   }
 }
 ```
+
+### Auto-Recommend (Blind)
+
+**Endpoint:** `GET /api/job-market/quotes/auto-recommend?load_id=uuid`
+
+**Response:**
+
+```json
+{
+  "vehicle_id": "uuid",
+  "driver_id": "uuid",
+  "quoted_price": 450.00,
+  "eta_minutes": 95,
+  "reasoning": {
+    "vehicle_reason": "Exact vehicle type match. 85 km from collection (Birmingham). ~85 min ETA",
+    "driver_reason": "Assigned driver for selected vehicle (ADR certified)",
+    "price_reason": "Recommended mid-range price for 200 km route"
+  }
+}
+```
+
+### Get Quotes for a Load
+
+**Endpoint:** `GET /api/job-market/jobs/:id/quotes`
+
+**Response:**
+
+```json
+{
+  "quotes": [
+    {
+      "quote_id": "uuid",
+      "fleet_quoter_name": "QuickShip Logistics",
+      "quoted_price": 350.00,
+      "offered_vehicle_type": "rigid_18t",
+      "eta_to_collection": 90,
+      "status": "rejected",
+      "adr_certified": true,
+      "score_breakdown": { "price_score": 0.85, "eta_score": 0.7, "fleet_rating_score": 0.6, "vehicle_match": 1.0, "composite_score": 0.78 }
+    }
+  ],
+  "max_budget": 500.00
+}
+```
+
+### Delete Quote
+
+**Endpoint:** `DELETE /api/job-market/quotes/:id`
+
+**Response:** `204 No Content`
 
 ### Fleet Management
 
@@ -579,32 +688,42 @@ recommended_max = recommended_mid × 1.15
 
 Determines whether the Load Poster's system accepts a quote.
 
+**Pre-scoring gates (ZOPA):**
+
+- If `quoted_price > load.max_budget` → instant rejection ("exceeds poster's budget")
+- If `offered_vehicle_type NOT in load.acceptable_vehicle_types` → instant rejection ("vehicle not accepted")
+
 **ADR prerequisite:** If the job requires ADR, only quotes from ADR-certified drivers are accepted. This is enforced at submission time (hard gate), not as a scoring signal. Non-ADR drivers cannot quote on ADR jobs.
 
 
 | Signal             | Weight | Score Range | How Scored                                                                         |
 | ------------------ | ------ | ----------- | ---------------------------------------------------------------------------------- |
-| price_score        | 0.40   | 0.0–1.0     | Inverse normalised: cheapest quote among all for this load = 1.0, most expensive = 0.0 |
-| eta_score          | 0.30   | 0.0–1.0     | Inverse normalised: fastest ETA = 1.0, slowest = 0.0                               |
-| fleet_rating_score | 0.18   | 0.0–1.0     | `fleet_rating / 5.0`                                                                |
-| vehicle_match      | 0.12   | 0.0 or 1.0  | 1.0 if offered vehicle type matches or exceeds requested; 0.0 otherwise             |
+| price_score        | 0.40   | 0.0–1.0     | Budget-aware: at/below rec.mid = 1.0, tapers to 0.5 at max_budget. Benchmark mode if no budget |
+| eta_score          | 0.25   | 0.0–1.0     | Grace period = collection_window_minutes (default 10 min); graduated penalty beyond |
+| fleet_rating_score | 0.15   | 0.0–1.0     | `fleet_rating / 5.0` (simulated fleets use neutral 3.0)                             |
+| vehicle_match      | 0.20   | 0.0–1.0     | Gradient: exact match = 1.0, 1 size up = 0.9, 2 up = 0.75, 3+ up = 0.6; undersized = 0.0 |
 
 
-**Composite score:** Weighted sum of all signals.
+**Composite score:** Weighted sum of all signals. For multi-quote scenarios, blends 60% benchmark + 40% relative ranking.
 
-**Acceptance threshold:** `composite_score >= 0.65` → accepted; below → rejected.
+**Acceptance thresholds:**
+- Sole bidder: `composite_score >= 0.60`
+- Multi-quote: `composite_score >= 0.70`
 
 **Tie-breaking:** If multiple quotes exceed the threshold for the same load, the highest composite score wins. Only one quote is accepted per load.
+
+**Feedback:** Plain English messages explain acceptance/rejection with specific improvement areas.
 
 ### 16.4 Fallback Strategies
 
 
-| Scenario                        | Strategy                                                            |
-| ------------------------------- | ------------------------------------------------------------------- |
-| Only one quote for a job        | Accept if composite score >= 0.50 (lower threshold for sole bidder) |
-| No quotes after generation      | Load remains "posted"; no timeout in MVP                            |
-| Fleet has no rating history     | Default rating = 3.0 (neutral)                                      |
-| New fleet (zero completed jobs) | Fleet profile shows 0 completed, rating 3.0                         |
+| Scenario                           | Strategy                                                            |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| Only one quote for a job           | Accept if composite score >= 0.60 (lower threshold for sole bidder) |
+| No quotes after generation         | Load remains "posted"; no timeout in MVP                            |
+| Fleet has no rating history        | Default rating = 3.0 (neutral)                                      |
+| New fleet (zero completed jobs)    | Fleet profile shows 0 completed, rating 3.0                         |
+| Simulated competitor fleet rating  | Always 3.0 (not the user's fleet rating)                            |
 
 
 ### 16.5 Acceptance Scenarios
@@ -614,10 +733,12 @@ Determines whether the Load Poster's system accepts a quote.
 | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | REC-01 | Load requires rigid_18t, 200km, no ADR. Three quotes submitted: £400 (rating 4.5), £350 (rating 3.0), £500 (rating 4.8)   | System scores all quotes | £350 quote has highest price_score; final acceptance depends on composite of all signals                                              |
 | REC-02 | Load requires ADR. Fleet Operator selects a non-ADR driver                                                                | System validates quote   | Quote submission blocked. "This job requires ADR certification. Select an ADR-certified driver to quote."                              |
-| REC-03 | Load requires articulated. Fleet Operator offers small_van                                                                | System scores the quote  | vehicle_match = 0.0; composite score penalised by 0.12 weight                                                                         |
-| REC-04 | Single quote on a load with composite score 0.52                                                                          | System evaluates         | Accepted (sole bidder threshold is 0.50)                                                                                              |
-| REC-05 | Single quote on a load with composite score 0.45                                                                          | System evaluates         | Rejected (below sole bidder threshold of 0.50)                                                                                        |
+| REC-03 | Load requires articulated. Fleet Operator offers small_van                                                                | System scores the quote  | vehicle_match = 0.0; composite score penalised by 0.20 weight                                                                         |
+| REC-04 | Single quote on a load with composite score 0.62                                                                          | System evaluates         | Accepted (sole bidder threshold is 0.60)                                                                                              |
+| REC-05 | Single quote on a load with composite score 0.55                                                                          | System evaluates         | Rejected (below sole bidder threshold of 0.60)                                                                                        |
 | REC-06 | Fleet Operator asks for price recommendation on 300km articulated load, ADR required, 2 existing quotes, fleet rating 4.0 | System calculates        | base = 300 × 3.00 = £900; ADR premium = +15% → £1035; competition factor = 0.90; rating factor = 1.03; mid ≈ £959; range ≈ £815–£1103 |
+| REC-07 | Quote price exceeds load's max_budget                                                                                     | System evaluates         | Instant rejection via ZOPA gate. Feedback: "Your quote of £X exceeds the poster's maximum budget of £Y"                              |
+| REC-08 | Offered vehicle not in load's acceptable_vehicle_types                                                                    | System evaluates         | Instant rejection via ZOPA gate. Feedback: "Your [vehicle] is not accepted for this job"                                              |
 
 
 ---

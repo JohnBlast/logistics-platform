@@ -214,6 +214,18 @@ export const api = {
           ? `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}&vehicle_type=${encodeURIComponent(vehicleType)}`
           : `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}`
       ),
+    getAutoRecommendation: (loadId: string) =>
+      fetchApi<{
+        vehicle_id: string
+        driver_id: string
+        quoted_price: number
+        eta_minutes: number
+        reasoning: {
+          vehicle_reason: string
+          driver_reason: string
+          price_reason: string
+        }
+      }>(`/api/job-market/quotes/auto-recommend?load_id=${encodeURIComponent(loadId)}`),
     submitQuote: (data: {
       load_id: string
       quoted_price: number

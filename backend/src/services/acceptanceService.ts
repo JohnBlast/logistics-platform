@@ -260,8 +260,12 @@ export function scoreAndEvaluate(quoteId: string): {
   const profiles = new Map<string, { rating: number }>()
   for (const q of allQuotes) {
     if (!profiles.has(q.associated_fleet_id)) {
-      const p = getFleetProfile()
-      profiles.set(q.associated_fleet_id, { rating: p.rating })
+      if (q.associated_fleet_id.startsWith('sim-')) {
+        profiles.set(q.associated_fleet_id, { rating: 3.0 })
+      } else {
+        const p = getFleetProfile()
+        profiles.set(q.associated_fleet_id, { rating: p.rating })
+      }
     }
   }
 

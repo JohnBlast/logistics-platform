@@ -4,8 +4,7 @@ import type { JobBoardLoad, Vehicle, Driver, PriceRecommendation } from '../../l
 import { getFieldLabel, getVehicleTypeLabel } from '../../lib/jobmarket/displayNames'
 import { PriceRecommendation as PriceRecDisplay } from './PriceRecommendation'
 import { QuoteResult, type QuoteSubmitResult } from './QuoteResult'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { api } from '../../services/api'
 
 interface QuoteFormProps {
   job: JobBoardLoad | null
@@ -27,6 +26,7 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
   const [recommendation, setRecommendation] = useState<PriceRecommendation | null>(null)
   const [recLoading, setRecLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [autoRecLoading, setAutoRecLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === vehicleId)
@@ -63,16 +63,14 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
     }
     setRecLoading(true)
     const vt = selectedVehicle?.vehicle_type ?? job.required_vehicle_type
-    const qs = vt ? `load_id=${job.load_id}&vehicle_type=${vt}` : `load_id=${job.load_id}`
-    fetch(`${API_URL}/api/job-market/quotes/recommend?${qs}`)
-      .then((r) => r.json())
+    api.jobmarket.getRecommendation(job.load_id, vt)
       .then((data) => {
         if (data.recommended_price) {
           setRecommendation({
             min: data.recommended_price.min,
             mid: data.recommended_price.mid,
             max: data.recommended_price.max,
-            signals: data.signals,
+            signals: data.signals as PriceRecommendation['signals'],
           })
         } else {
           setRecommendation(null)
@@ -87,21 +85,12 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
     setError(null)
     setSubmitting(true)
     try {
-      const res = await fetch(`${API_URL}/api/job-market/quotes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          load_id: job.load_id,
-          quoted_price: Number(price),
-          vehicle_id: vehicleId,
-          driver_id: driverId,
-        }),
+      const data = await api.jobmarket.submitQuote({
+        load_id: job.load_id,
+        quoted_price: Number(price),
+        vehicle_id: vehicleId,
+        driver_id: driverId,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(data.message || data.error || res.statusText)
-        return
-      }
       const result: QuoteSubmitResult = {
         quote_id: data.quote_id,
         load_id: data.load_id ?? job.load_id,
@@ -124,6 +113,28 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       setError(e instanceof Error ? e.message : 'Submission failed')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleAutoRecommend = async () => {
+    if (!job) return
+    setAutoRecLoading(true)
+    setError(null)
+    try {
+      const result = await api.jobmarket.getAutoRecommendation(job.load_id)
+      setVehicleId(result.vehicle_id)
+      setDriverId(result.driver_id)
+      setPrice(String(result.quoted_price))
+      onDebugLog?.('AutoRecommend applied', {
+        vehicle_id: result.vehicle_id,
+        driver_id: result.driver_id,
+        quoted_price: result.quoted_price,
+        reasoning: result.reasoning as unknown as Record<string, unknown>,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Auto-recommend failed')
+    } finally {
+      setAutoRecLoading(false)
     }
   }
 
@@ -153,7 +164,17 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-medium">Submit a quote</h4>
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium">Submit a quote</h4>
+        <button
+          type="button"
+          onClick={handleAutoRecommend}
+          disabled={autoRecLoading}
+          className="px-3 py-1.5 text-xs border border-primary text-primary rounded font-medium hover:bg-primary/8 disabled:opacity-50"
+        >
+          {autoRecLoading ? 'Recommending\u2026' : 'Auto-fill'}
+        </button>
+      </div>
       <PriceRecDisplay recommendation={recommendation} loading={recLoading} />
       {adrMismatch && (
         <p className="text-sm text-red-600">

@@ -248,10 +248,7 @@ export function getVehicle(vehicleId: string): Vehicle | undefined {
 }
 
 export function getVehicles(): Vehicle[] {
-  return Array.from(vehicles.values()).filter((v) => {
-    // All vehicles belong to the single fleet in MVP
-    return true
-  })
+  return [...vehicles.values()]
 }
 
 export function deleteVehicle(vehicleId: string): void {

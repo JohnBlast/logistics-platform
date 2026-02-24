@@ -21,6 +21,8 @@ interface DataTableWithSearchProps {
   getRowKey?: (row: Record<string, unknown>, index: number) => string
   /** Display labels for column headers (field name → label) */
   columnLabels?: Record<string, string>
+  /** Custom cell renderer — return ReactNode for rich formatting, or undefined to use default String(val) */
+  renderCell?: (col: string, value: unknown, row: Record<string, unknown>) => React.ReactNode
 }
 
 export function DataTableWithSearch({
@@ -34,6 +36,7 @@ export function DataTableWithSearch({
   selectedRowKey,
   getRowKey = (_, i) => String(i),
   columnLabels,
+  renderCell,
 }: DataTableWithSearchProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -171,7 +174,7 @@ export function DataTableWithSearch({
               return (
               <tr
                 key={rowKey}
-                className={`border-t ${onRowClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-primary/8' : 'hover:bg-black/4'}`}
+                className={`border-t transition-colors duration-100 ${onRowClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-primary/8' : 'hover:bg-black/4'}`}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {cols.map((c) => {
@@ -183,7 +186,7 @@ export function DataTableWithSearch({
                       className={`px-2 py-1 truncate ${isWarning ? 'bg-amber-50 text-amber-800' : ''}`}
                       title={String(val ?? '')}
                     >
-                      {String(val ?? '')}
+                      {renderCell ? renderCell(c, val, row) : String(val ?? '')}
                     </td>
                   )
                 })}

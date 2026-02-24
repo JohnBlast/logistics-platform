@@ -24,6 +24,7 @@ import { generateFleet } from '../services/fleetGeneratorService.js'
 import { recommendPrice } from '../services/recommenderService.js'
 import { submitQuote } from '../services/quoteSubmissionService.js'
 import { generateCompetingQuotes } from '../services/competingQuoteService.js'
+import { autoRecommend } from '../services/autoRecommendService.js'
 
 export const jobmarketRouter = Router()
 
@@ -93,11 +94,27 @@ jobmarketRouter.get('/quotes/recommend', (req, res) => {
   })
 })
 
+/** GET /api/job-market/quotes/auto-recommend — blind vehicle+driver+price recommendation */
+jobmarketRouter.get('/quotes/auto-recommend', (req, res) => {
+  const loadId = req.query.load_id as string
+  if (!loadId) {
+    return res.status(400).json({ error: 'load_id is required' })
+  }
+  const result = autoRecommend(loadId)
+  if ('error' in result) {
+    return res.status(404).json({ error: result.error })
+  }
+  res.json(result)
+})
+
 /** POST /api/job-market/quotes */
 jobmarketRouter.post('/quotes', (req, res) => {
   const { load_id, quoted_price, vehicle_id, driver_id } = req.body ?? {}
   if (!load_id || quoted_price == null || !vehicle_id || !driver_id) {
     return res.status(400).json({ error: 'load_id, quoted_price, vehicle_id, and driver_id are required' })
+  }
+  if (isNaN(Number(quoted_price)) || Number(quoted_price) <= 0) {
+    return res.status(400).json({ error: 'quoted_price must be a positive number' })
   }
 
   const result = submitQuote({

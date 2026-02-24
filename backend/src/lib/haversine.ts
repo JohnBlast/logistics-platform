@@ -21,8 +21,9 @@ export function haversineDistance(
 }
 
 /**
- * ETA in minutes at ~60 km/h average road speed
- * Formula: distance_km / 60 * 60 = distance_km (PRD §9)
+ * ETA in minutes at ~60 km/h average road speed.
+ * At 60 km/h, 1 km takes 1 minute, so ETA in minutes equals distance in km.
+ * The (distanceKm / 60) * 60 form is kept explicit for clarity of the unit conversion.
  */
 export function estimateETA(distanceKm: number): number {
   return Math.round((distanceKm / 60) * 60)
