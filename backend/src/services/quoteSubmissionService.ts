@@ -26,6 +26,7 @@ export interface SubmitQuoteInput {
   quoted_price: number
   vehicle_id: string
   driver_id: string
+  quote_source?: 'manual' | 'algorithmic' | 'ai'
 }
 
 export interface SubmitQuoteResult {
@@ -153,6 +154,7 @@ export function submitQuote(input: SubmitQuoteInput): SubmitQuoteResult | Submit
     adr_certified: driver.has_adr_certification,
     eta_to_collection: etaToCollection,
     distance_km: load.distance_km,
+    quote_source: input.quote_source ?? 'manual',
   })
 
   const evalResult = scoreAndEvaluate(quote.quote_id)

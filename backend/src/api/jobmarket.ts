@@ -25,6 +25,8 @@ import { recommendPrice } from '../services/recommenderService.js'
 import { submitQuote } from '../services/quoteSubmissionService.js'
 import { generateCompetingQuotes } from '../services/competingQuoteService.js'
 import { autoRecommend } from '../services/autoRecommendService.js'
+import { aiRecommendPrice, getEvaluatedQuoteCount } from '../services/aiRecommenderService.js'
+import { isClaudeAvailable } from '../services/claudeService.js'
 
 export const jobmarketRouter = Router()
 
@@ -94,13 +96,46 @@ jobmarketRouter.get('/quotes/recommend', (req, res) => {
   })
 })
 
-/** GET /api/job-market/quotes/auto-recommend — blind vehicle+driver+price recommendation */
-jobmarketRouter.get('/quotes/auto-recommend', (req, res) => {
+/** GET /api/job-market/quotes/ai-status — check if AI recommender is available */
+jobmarketRouter.get('/quotes/ai-status', (_req, res) => {
+  const claudeAvailable = isClaudeAvailable()
+  const evaluatedQuotes = getEvaluatedQuoteCount()
+  res.json({
+    available: claudeAvailable && evaluatedQuotes >= 5,
+    claude_available: claudeAvailable,
+    evaluated_quotes: evaluatedQuotes,
+    required_quotes: 5,
+  })
+})
+
+/** GET /api/job-market/quotes/ai-recommend — AI-powered price recommendation */
+jobmarketRouter.get('/quotes/ai-recommend', async (req, res) => {
   const loadId = req.query.load_id as string
+  const vehicleType = req.query.vehicle_type as string | undefined
   if (!loadId) {
     return res.status(400).json({ error: 'load_id is required' })
   }
-  const result = autoRecommend(loadId)
+  const result = await aiRecommendPrice(loadId, vehicleType as any)
+  if ('error' in result) {
+    return res.status(400).json({ error: result.error })
+  }
+  res.json({
+    recommended_price: { min: result.min, mid: result.mid, max: result.max },
+    signals: result.signals,
+    explanation: result.explanation,
+    source: result.source,
+    historical_quotes_used: result.historical_quotes_used,
+  })
+})
+
+/** GET /api/job-market/quotes/auto-recommend — blind vehicle+driver+price recommendation */
+jobmarketRouter.get('/quotes/auto-recommend', async (req, res) => {
+  const loadId = req.query.load_id as string
+  const useAi = req.query.use_ai === '1' || req.query.use_ai === 'true'
+  if (!loadId) {
+    return res.status(400).json({ error: 'load_id is required' })
+  }
+  const result = await autoRecommend(loadId, useAi)
   if ('error' in result) {
     return res.status(404).json({ error: result.error })
   }
@@ -109,7 +144,7 @@ jobmarketRouter.get('/quotes/auto-recommend', (req, res) => {
 
 /** POST /api/job-market/quotes */
 jobmarketRouter.post('/quotes', (req, res) => {
-  const { load_id, quoted_price, vehicle_id, driver_id } = req.body ?? {}
+  const { load_id, quoted_price, vehicle_id, driver_id, quote_source } = req.body ?? {}
   if (!load_id || quoted_price == null || !vehicle_id || !driver_id) {
     return res.status(400).json({ error: 'load_id, quoted_price, vehicle_id, and driver_id are required' })
   }
@@ -122,6 +157,7 @@ jobmarketRouter.post('/quotes', (req, res) => {
     quoted_price: Number(quoted_price),
     vehicle_id,
     driver_id,
+    quote_source: quote_source ?? 'manual',
   })
 
   if ('code' in result) {

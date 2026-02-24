@@ -5,9 +5,11 @@ import { getFieldLabel, getVehicleTypeLabel } from '../../lib/jobmarket/displayN
 interface PriceRecommendationProps {
   recommendation: PriceRecType | null
   loading?: boolean
+  source?: 'algorithmic' | 'ai'
+  explanation?: string
 }
 
-export function PriceRecommendation({ recommendation, loading }: PriceRecommendationProps) {
+export function PriceRecommendation({ recommendation, loading, source, explanation }: PriceRecommendationProps) {
   if (loading) {
     return <p className="text-sm text-[var(--md-text-secondary)]">Loading recommendation…</p>
   }
@@ -17,7 +19,12 @@ export function PriceRecommendation({ recommendation, loading }: PriceRecommenda
 
   return (
     <div className="space-y-1">
-      <h4 className="text-sm font-medium">Recommended price range</h4>
+      <div className="flex items-center gap-2">
+        <h4 className="text-sm font-medium">Recommended price range</h4>
+        {source === 'ai' && (
+          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700">AI</span>
+        )}
+      </div>
       <div className="flex items-baseline gap-2">
         <span className="text-xs text-[var(--md-text-secondary)]">£{recommendation.min.toFixed(2)}</span>
         <span className="text-lg font-semibold text-primary">£{recommendation.mid.toFixed(2)}</span>
@@ -30,6 +37,9 @@ export function PriceRecommendation({ recommendation, loading }: PriceRecommenda
           {recommendation.signals.competing_quotes > 0 &&
             `, ${recommendation.signals.competing_quotes} competing quote(s)`}
         </p>
+      )}
+      {explanation && (
+        <p className="text-xs text-purple-700 mt-1">{explanation}</p>
       )}
     </div>
   )

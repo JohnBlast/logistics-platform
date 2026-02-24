@@ -56,6 +56,7 @@ export interface Quote {
   eta_to_collection?: number
   offered_vehicle_type?: VehicleType
   adr_certified?: boolean
+  quote_source?: 'manual' | 'algorithmic' | 'ai'
   created_at: string
   updated_at: string
 }
@@ -125,6 +126,13 @@ export interface QuoteResult {
   offered_vehicle_type?: VehicleType
   adr_certified?: boolean
   score_breakdown?: ScoreBreakdown
+}
+
+export interface AiRecommenderStatus {
+  available: boolean
+  claude_available: boolean
+  evaluated_quotes: number
+  required_quotes: number
 }
 
 export interface JobBoardLoad extends Load {

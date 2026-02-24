@@ -214,23 +214,42 @@ export const api = {
           ? `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}&vehicle_type=${encodeURIComponent(vehicleType)}`
           : `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}`
       ),
-    getAutoRecommendation: (loadId: string) =>
+    getAiStatus: () =>
+      fetchApi<{ available: boolean; claude_available: boolean; evaluated_quotes: number; required_quotes: number }>(
+        '/api/job-market/quotes/ai-status'
+      ),
+    getAiRecommendation: (loadId: string, vehicleType?: string) =>
+      fetchApi<{
+        recommended_price: { min: number; mid: number; max: number }
+        signals: Record<string, unknown>
+        explanation: string
+        source: string
+        historical_quotes_used: number
+      }>(
+        vehicleType
+          ? `/api/job-market/quotes/ai-recommend?load_id=${encodeURIComponent(loadId)}&vehicle_type=${encodeURIComponent(vehicleType)}`
+          : `/api/job-market/quotes/ai-recommend?load_id=${encodeURIComponent(loadId)}`
+      ),
+    getAutoRecommendation: (loadId: string, useAi?: boolean) =>
       fetchApi<{
         vehicle_id: string
         driver_id: string
         quoted_price: number
         eta_minutes: number
+        quote_source: 'algorithmic' | 'ai'
         reasoning: {
           vehicle_reason: string
           driver_reason: string
           price_reason: string
         }
-      }>(`/api/job-market/quotes/auto-recommend?load_id=${encodeURIComponent(loadId)}`),
+        ai_error?: string
+      }>(`/api/job-market/quotes/auto-recommend?load_id=${encodeURIComponent(loadId)}${useAi ? '&use_ai=1' : ''}`),
     submitQuote: (data: {
       load_id: string
       quoted_price: number
       vehicle_id: string
       driver_id: string
+      quote_source?: 'manual' | 'algorithmic' | 'ai'
     }) =>
       fetchApi<{
         quote_id: string

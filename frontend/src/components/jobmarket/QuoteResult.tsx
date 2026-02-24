@@ -25,6 +25,7 @@ export interface QuoteSubmitResult {
   feedback?: string
   score_breakdown?: ScoreBreakdown
   competing_quotes: number
+  quote_source?: 'manual' | 'algorithmic' | 'ai'
 }
 
 interface QuoteResultProps {
@@ -108,6 +109,12 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
           )}
           {result.eta_to_collection != null && (
             <span className="text-[var(--md-text-secondary)]">~{result.eta_to_collection} min ETA</span>
+          )}
+          {result.quote_source === 'ai' && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700">AI</span>
+          )}
+          {result.quote_source === 'algorithmic' && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">Auto</span>
           )}
         </div>
       </div>

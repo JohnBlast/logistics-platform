@@ -54,6 +54,7 @@ export interface Quote {
   eta_to_collection?: number
   offered_vehicle_type?: VehicleType
   adr_certified?: boolean
+  quote_source?: 'manual' | 'algorithmic' | 'ai'
   created_at: string
   updated_at: string
 }

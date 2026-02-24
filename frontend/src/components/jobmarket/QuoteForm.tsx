@@ -1,6 +1,6 @@
 /** Quote Form — price, vehicle, driver; ADR gate; recommender (US1) */
 import { useState, useEffect } from 'react'
-import type { JobBoardLoad, Vehicle, Driver, PriceRecommendation } from '../../lib/jobmarket/types'
+import type { JobBoardLoad, Vehicle, Driver, PriceRecommendation, AiRecommenderStatus } from '../../lib/jobmarket/types'
 import { getFieldLabel, getVehicleTypeLabel } from '../../lib/jobmarket/displayNames'
 import { PriceRecommendation as PriceRecDisplay } from './PriceRecommendation'
 import { QuoteResult, type QuoteSubmitResult } from './QuoteResult'
@@ -20,6 +20,7 @@ interface QuoteFormProps {
 }
 
 export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteResult, onQuoteResult, onSubmitted, onDebugLog }: QuoteFormProps) {
+  type AutoReasoning = { vehicle_reason: string; driver_reason: string; price_reason: string }
   const [price, setPrice] = useState('')
   const [vehicleId, setVehicleId] = useState('')
   const [driverId, setDriverId] = useState('')
@@ -28,7 +29,13 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
   const [submitting, setSubmitting] = useState(false)
   const [autoRecLoading, setAutoRecLoading] = useState(false)
   const [autoFilled, setAutoFilled] = useState(false)
+  const [aiAutoReasoning, setAiAutoReasoning] = useState<AutoReasoning | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [recommenderMode, setRecommenderMode] = useState<'algorithmic' | 'ai'>('algorithmic')
+  const [aiStatus, setAiStatus] = useState<AiRecommenderStatus | null>(null)
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null)
+  const [recSource, setRecSource] = useState<'algorithmic' | 'ai'>('algorithmic')
+  const [quoteSource, setQuoteSource] = useState<'manual' | 'algorithmic' | 'ai'>('manual')
 
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === vehicleId)
   const selectedDriver = drivers.find((d) => d.driver_id === driverId)
@@ -58,11 +65,21 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
     !adrMismatch
 
   useEffect(() => {
+    api.jobmarket.getAiStatus().then(setAiStatus).catch(() => setAiStatus(null))
+  }, [])
+
+  useEffect(() => {
+    // Always load baseline (algorithmic) recommendation automatically.
+    // AI-powered pricing is only applied when the user explicitly clicks Auto-fill.
     if (!job) {
       setRecommendation(null)
+      setAiExplanation(null)
+      setAiAutoReasoning(null)
       return
     }
     setRecLoading(true)
+    setAiExplanation(null)
+    setRecSource('algorithmic')
     const vt = selectedVehicle?.vehicle_type ?? job.required_vehicle_type
     api.jobmarket.getRecommendation(job.load_id, vt)
       .then((data) => {
@@ -81,6 +98,11 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       .finally(() => setRecLoading(false))
   }, [job?.load_id, selectedVehicle?.vehicle_type, job?.required_vehicle_type])
 
+  // Reset any AI auto-lock when switching to a different job
+  useEffect(() => {
+    setAiAutoReasoning(null)
+  }, [job?.load_id])
+
   const handleSubmit = async () => {
     if (!job || !canSubmit) return
     setError(null)
@@ -91,6 +113,7 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
         quoted_price: Number(price),
         vehicle_id: vehicleId,
         driver_id: driverId,
+        quote_source: quoteSource,
       })
       const result: QuoteSubmitResult = {
         quote_id: data.quote_id,
@@ -102,6 +125,7 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
         feedback: data.feedback,
         score_breakdown: data.score_breakdown,
         competing_quotes: data.competing_quotes ?? 0,
+        quote_source: quoteSource,
       }
       onDebugLog?.('QuoteForm: submit success, calling onQuoteResult then onSubmitted', { load_id: result.load_id, status: result.status })
       onQuoteResult?.(result)
@@ -110,6 +134,14 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       setDriverId('')
       onSubmitted?.()
       onDebugLog?.('QuoteForm: onSubmitted() called')
+
+      // Refresh AI status after each evaluated quote so the unlock counter and availability update.
+      api.jobmarket
+        .getAiStatus()
+        .then(setAiStatus)
+        .catch(() => {
+          // ignore AI status refresh errors
+        })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submission failed')
     } finally {
@@ -121,17 +153,28 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
     if (!job) return
     setAutoRecLoading(true)
     setError(null)
+    setAiAutoReasoning(null)
+    const useAi = recommenderMode === 'ai' && aiStatus?.available
     try {
-      const result = await api.jobmarket.getAutoRecommendation(job.load_id)
+      const result = await api.jobmarket.getAutoRecommendation(job.load_id, useAi)
       setVehicleId(result.vehicle_id)
       setDriverId(result.driver_id)
       setPrice(String(result.quoted_price))
+      setQuoteSource(result.quote_source ?? 'algorithmic')
+      if (useAi && (result.quote_source ?? 'algorithmic') === 'ai' && result.reasoning) {
+        setAiAutoReasoning(result.reasoning as AutoReasoning)
+      }
+      // Surface AI-specific errors (e.g. not enough quote history) even when we fall back to algorithmic.
+      if (useAi && result.ai_error) {
+        setError(result.ai_error)
+      }
       setAutoFilled(true)
       setTimeout(() => setAutoFilled(false), 2500)
       onDebugLog?.('AutoRecommend applied', {
         vehicle_id: result.vehicle_id,
         driver_id: result.driver_id,
         quoted_price: result.quoted_price,
+        quote_source: result.quote_source,
         reasoning: result.reasoning as unknown as Record<string, unknown>,
       })
     } catch (e) {
@@ -175,13 +218,74 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           disabled={autoRecLoading}
           className="px-3 py-1.5 text-xs border border-primary text-primary rounded font-medium hover:bg-primary/8 disabled:opacity-50"
         >
-          {autoRecLoading ? 'Recommending\u2026' : 'Auto-fill'}
+          {autoRecLoading
+            ? 'Recommending\u2026'
+            : recommenderMode === 'ai' && aiStatus?.available
+            ? 'Auto-fill (AI)'
+            : 'Auto-fill'}
         </button>
       </div>
+      {/* Recommender mode toggle */}
+      <div className="flex items-center gap-1 bg-black/4 rounded-full p-0.5 w-fit">
+        <button
+          type="button"
+          onClick={() => setRecommenderMode('algorithmic')}
+          className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+            recommenderMode === 'algorithmic'
+              ? 'bg-white text-[var(--md-text-primary)] shadow-sm'
+              : 'text-[var(--md-text-secondary)] hover:text-[var(--md-text-primary)]'
+          }`}
+        >
+          Algorithmic
+        </button>
+        <button
+          type="button"
+          onClick={() => aiStatus?.available && setRecommenderMode('ai')}
+          disabled={!aiStatus?.available}
+          title={
+            !aiStatus?.claude_available
+              ? 'Claude API key not configured'
+              : !aiStatus?.available
+              ? `Need ${aiStatus?.required_quotes ?? 5} evaluated quotes (have ${aiStatus?.evaluated_quotes ?? 0})`
+              : 'AI-powered recommendation from your quoting history'
+          }
+          className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+            recommenderMode === 'ai'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : aiStatus?.available
+              ? 'text-[var(--md-text-secondary)] hover:text-purple-600'
+              : 'text-[var(--md-text-secondary)] opacity-40 cursor-not-allowed'
+          }`}
+        >
+          AI
+        </button>
+      </div>
+      {aiStatus && !aiStatus.available && (
+        <p className="text-xs text-amber-700">
+          {aiStatus.claude_available
+            ? `AI recommender will unlock after ${aiStatus.required_quotes ?? 5} accepted or rejected quotes. You currently have ${aiStatus.evaluated_quotes ?? 0}.`
+            : 'AI recommender unavailable: Claude API key is not configured.'}
+        </p>
+      )}
       {autoFilled && (
         <p className="text-xs text-green-600 font-medium">Fields auto-filled. Review and submit.</p>
       )}
-      <PriceRecDisplay recommendation={recommendation} loading={recLoading} />
+      {recommenderMode === 'ai' && aiAutoReasoning && (
+        <div className="rounded bg-purple-50 border border-purple-100 p-2.5">
+          <p className="text-xs font-medium text-purple-800 mb-1">Why AI chose this quote</p>
+          <ul className="text-xs text-purple-900 list-disc pl-4 space-y-0.5">
+            {aiAutoReasoning.vehicle_reason && <li>{aiAutoReasoning.vehicle_reason}</li>}
+            {aiAutoReasoning.driver_reason && <li>{aiAutoReasoning.driver_reason}</li>}
+            {aiAutoReasoning.price_reason && <li>{aiAutoReasoning.price_reason}</li>}
+          </ul>
+        </div>
+      )}
+      <PriceRecDisplay
+        recommendation={recommendation}
+        loading={recLoading}
+        source={recSource}
+        explanation={aiExplanation ?? undefined}
+      />
       {adrMismatch && (
         <p className="text-sm text-red-600">
           This job requires ADR certification. Select an ADR-certified driver to quote.
@@ -211,9 +315,12 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
             min="0"
             step="0.01"
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            onChange={(e) => {
+              setPrice(e.target.value)
+              setQuoteSource('manual')
+            }}
             placeholder="e.g. 450"
-            disabled={submitting}
+            disabled={submitting || autoRecLoading}
             className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           />
         </label>
@@ -221,8 +328,11 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           <span className="block text-xs text-[var(--md-text-secondary)] mb-1">{getFieldLabel('vehicle_type')}</span>
           <select
             value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
-            disabled={submitting}
+            onChange={(e) => {
+              setVehicleId(e.target.value)
+              setQuoteSource('manual')
+            }}
+            disabled={submitting || autoRecLoading}
             className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           >
             <option value="">Select vehicle</option>
@@ -237,14 +347,17 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           <span className="block text-xs text-[var(--md-text-secondary)] mb-1">{getFieldLabel('name')}</span>
           <select
             value={driverId}
-            onChange={(e) => setDriverId(e.target.value)}
-            disabled={submitting}
+            onChange={(e) => {
+              setDriverId(e.target.value)
+              setQuoteSource('manual')
+            }}
+            disabled={submitting || autoRecLoading}
             className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           >
             <option value="">Select driver</option>
             {drivers.map((d) => (
               <option key={d.driver_id} value={d.driver_id}>
-                {d.name} {d.has_adr_certification ? '(ADR \u2713)' : ''}
+                {d.name} {d.has_adr_certification ? '(ADR ✓)' : ''}
               </option>
             ))}
           </select>

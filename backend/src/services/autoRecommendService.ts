@@ -1,27 +1,32 @@
 /**
  * Auto-Recommend Service — blindly recommends the best vehicle, driver, and price for a load.
  * "Blind" means it does NOT look at any existing quotes or competing bids.
+ * Supports optional AI-powered pricing via Claude when useAi is true.
  */
 
 import { getLoad, getVehicles, getDrivers, getDriver } from './jobmarketStore.js'
-import type { Vehicle, Driver } from './jobmarketStore.js'
+import type { Driver } from './jobmarketStore.js'
 import { lookupHub } from '../lib/ukHubs.js'
 import { haversineDistance, estimateETA } from '../lib/haversine.js'
 import { recommendPrice } from './recommenderService.js'
+import { aiRecommendPrice } from './aiRecommenderService.js'
 
 export interface AutoRecommendResult {
   vehicle_id: string
   driver_id: string
   quoted_price: number
   eta_minutes: number
+  quote_source: 'algorithmic' | 'ai'
   reasoning: {
     vehicle_reason: string
     driver_reason: string
     price_reason: string
   }
+  /** Optional explanation when AI pricing could not be used (e.g. not enough history) */
+  ai_error?: string
 }
 
-export function autoRecommend(loadId: string): AutoRecommendResult | { error: string } {
+export async function autoRecommend(loadId: string, useAi?: boolean): Promise<AutoRecommendResult | { error: string }> {
   const load = getLoad(loadId)
   if (!load) {
     console.log(`[auto-recommend] Load ${loadId} not found`)
@@ -107,9 +112,34 @@ export function autoRecommend(loadId: string): AutoRecommendResult | { error: st
       : `Available driver${bestDriver.has_adr_certification ? ' (ADR certified)' : ''}`
   }
 
-  // Step 5: Price = mid from recommender (blind to competitor quotes)
-  const rec = recommendPrice(loadId, best.vehicle.vehicle_type)
-  const quotedPrice = rec ? Math.round(rec.mid * 100) / 100 : Math.round(load.distance_km * 2 * 100) / 100
+  // Step 5: Price — use AI or algorithmic recommender
+  let quotedPrice: number
+  let priceReason: string
+  let quoteSource: 'algorithmic' | 'ai' = 'algorithmic'
+  let aiError: string | undefined
+
+  if (useAi) {
+    const aiRec = await aiRecommendPrice(loadId, best.vehicle.vehicle_type)
+    if ('error' in aiRec) {
+      // Fall back to algorithmic
+      aiError = aiRec.error
+      const rec = recommendPrice(loadId, best.vehicle.vehicle_type)
+      quotedPrice = rec ? Math.round(rec.mid * 100) / 100 : Math.round(load.distance_km * 2 * 100) / 100
+      priceReason = rec
+        ? `Algorithmic mid-range (AI unavailable: ${aiRec.error})`
+        : 'Estimated based on distance'
+    } else {
+      quotedPrice = Math.round(aiRec.mid * 100) / 100
+      priceReason = `AI-recommended: ${aiRec.explanation}`
+      quoteSource = 'ai'
+    }
+  } else {
+    const rec = recommendPrice(loadId, best.vehicle.vehicle_type)
+    quotedPrice = rec ? Math.round(rec.mid * 100) / 100 : Math.round(load.distance_km * 2 * 100) / 100
+    priceReason = rec
+      ? `Recommended mid-range price for ${rec.signals.distance_km} km route`
+      : 'Estimated based on distance'
+  }
 
   // Step 6: Compute ETA
   const etaMinutes = estimateETA(best.distKm)
@@ -121,19 +151,17 @@ export function autoRecommend(loadId: string): AutoRecommendResult | { error: st
     `~${etaMinutes} min ETA`,
   ].join('. ')
 
-  const priceReason = rec
-    ? `Recommended mid-range price for ${rec.signals.distance_km} km route`
-    : 'Estimated based on distance'
-
   return {
     vehicle_id: best.vehicle.vehicle_id,
     driver_id: bestDriver.driver_id,
     quoted_price: quotedPrice,
     eta_minutes: etaMinutes,
+    quote_source: quoteSource,
     reasoning: {
       vehicle_reason: vehicleReason,
       driver_reason: driverReason,
       price_reason: priceReason,
     },
+    ai_error: aiError,
   }
 }

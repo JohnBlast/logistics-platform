@@ -86,6 +86,12 @@ export function QuoteHistory({ quotes, loading, onRefresh, onDeleteQuote }: Quot
                 <span className="ml-2">
                   {getVehicleTypeLabel(q.offered_vehicle_type ?? q.requested_vehicle_type ?? '')}
                 </span>
+                {q.quote_source === 'ai' && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700">AI</span>
+                )}
+                {q.quote_source === 'algorithmic' && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">Auto</span>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
               {onDeleteQuote && (
