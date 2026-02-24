@@ -108,6 +108,7 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
         status: data.status,
         eta_to_collection: data.eta_to_collection,
         offered_vehicle_type: data.offered_vehicle_type,
+        quoted_price: Number(price),
         feedback: data.feedback,
         score_breakdown: data.score_breakdown,
         competing_quotes: data.competing_quotes ?? 0,

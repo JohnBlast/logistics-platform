@@ -21,6 +21,7 @@ export interface QuoteSubmitResult {
   status: string
   eta_to_collection: number
   offered_vehicle_type: string
+  quoted_price?: number
   feedback?: string
   score_breakdown?: ScoreBreakdown
   competing_quotes: number
@@ -95,14 +96,20 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
         </button>
       </div>
 
-      {/* Your quote summary: vehicle type + ETA to collection */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-[var(--md-text-secondary)]">
-        {result.offered_vehicle_type && (
-          <span>{getVehicleTypeLabel(result.offered_vehicle_type)}</span>
-        )}
-        {result.eta_to_collection != null && (
-          <span>{getFieldLabel('eta_to_collection')}: {result.eta_to_collection}</span>
-        )}
+      {/* Your sent quote — what they submitted */}
+      <div className="rounded bg-white/70 border border-black/8 p-2.5">
+        <p className="text-xs font-medium text-[var(--md-text-secondary)] mb-1.5">Your sent quote</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+          {result.quoted_price != null && (
+            <span className="font-mono font-medium text-[var(--md-text-primary)]">£{result.quoted_price.toFixed(2)}</span>
+          )}
+          {result.offered_vehicle_type && (
+            <span className="text-[var(--md-text-secondary)]">{getVehicleTypeLabel(result.offered_vehicle_type)}</span>
+          )}
+          {result.eta_to_collection != null && (
+            <span className="text-[var(--md-text-secondary)]">{getFieldLabel('eta_to_collection')}: {result.eta_to_collection}</span>
+          )}
+        </div>
       </div>
 
       {/* Plain English feedback */}
