@@ -1,3 +1,5 @@
+import type { JobBoardLoad, Quote, Vehicle, Driver, ScoreBreakdown } from '../lib/jobmarket/types'
+
 const API_URL = import.meta.env.VITE_API_URL || ''
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -152,6 +154,107 @@ export const api = {
       throw err
     }
     return body
+  },
+  jobmarket: {
+    getHubs: () =>
+      fetchApi<{ hubs: { city: string; lat: number; lng: number }[] }>('/api/job-market/hubs'),
+    generateJobs: (count: number) =>
+      fetchApi<{ jobs: JobBoardLoad[] }>('/api/job-market/jobs/generate', {
+        method: 'POST',
+        body: JSON.stringify({ count }),
+      }),
+    getJobs: (status?: string) =>
+      fetchApi<{ jobs: JobBoardLoad[] }>(
+        status ? `/api/job-market/jobs?status=${encodeURIComponent(status)}` : '/api/job-market/jobs'
+      ),
+    getJob: (id: string) => fetchApi<JobBoardLoad>(`/api/job-market/jobs/${id}`),
+    createVehicle: (data: {
+      vehicle_type: string
+      registration_number: string
+      capacity_kg?: number
+      driver_id?: string
+      current_city: string
+    }) =>
+      fetchApi<Vehicle>('/api/job-market/fleet/vehicles', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    createDriver: (data: { name: string; has_adr_certification: boolean }) =>
+      fetchApi<Driver>('/api/job-market/fleet/drivers', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    generateFleet: (vehicleCount: number, driverCount: number) =>
+      fetchApi<{ vehicles: Vehicle[]; drivers: Driver[] }>('/api/job-market/fleet/generate', {
+        method: 'POST',
+        body: JSON.stringify({ vehicle_count: vehicleCount, driver_count: driverCount }),
+      }),
+    getProfile: () =>
+      fetchApi<{
+        fleet_id: string
+        company_name: string
+        total_jobs_completed: number
+        rating: number
+        driver_count: number
+        vehicle_count: number
+        vehicles: Vehicle[]
+        drivers: Driver[]
+      }>('/api/job-market/fleet/profile'),
+    updateProfile: (data: { company_name?: string; rating?: number }) =>
+      fetchApi<{ company_name: string; rating: number }>('/api/job-market/fleet/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    getRecommendation: (loadId: string, vehicleType?: string) =>
+      fetchApi<{
+        recommended_price: { min: number; mid: number; max: number }
+        signals: Record<string, unknown>
+      }>(
+        vehicleType
+          ? `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}&vehicle_type=${encodeURIComponent(vehicleType)}`
+          : `/api/job-market/quotes/recommend?load_id=${encodeURIComponent(loadId)}`
+      ),
+    submitQuote: (data: {
+      load_id: string
+      quoted_price: number
+      vehicle_id: string
+      driver_id: string
+    }) =>
+      fetchApi<{
+        quote_id: string
+        load_id: string
+        status: string
+        eta_to_collection: number
+        offered_vehicle_type: string
+        adr_certified: boolean
+        recommended_price?: { min: number; max: number }
+        score_breakdown?: ScoreBreakdown
+        feedback?: string
+        competing_quotes: number
+      }>('/api/job-market/quotes', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getLoadQuotes: (loadId: string) =>
+      fetchApi<{
+        quotes: {
+          quote_id: string
+          fleet_quoter_name: string
+          quoted_price: number
+          offered_vehicle_type: string
+          eta_to_collection: number
+          status: string
+          adr_certified: boolean
+          score_breakdown?: ScoreBreakdown
+        }[]
+        max_budget?: number
+      }>(`/api/job-market/jobs/${encodeURIComponent(loadId)}/quotes`),
+    getQuoteHistory: () =>
+      fetchApi<{ quotes: (Quote & { score_breakdown?: ScoreBreakdown })[] }>('/api/job-market/quotes'),
+    getQuote: (id: string) =>
+      fetchApi<Quote & { score_breakdown?: ScoreBreakdown }>(`/api/job-market/quotes/${id}`),
+    deleteQuote: (id: string) =>
+      fetchApi<void>(`/api/job-market/quotes/${id}`, { method: 'DELETE' }),
   },
   pipeline: {
     validate: (profileId: string, sessionData: unknown, opts?: { joinOnly?: boolean; filtersOverride?: unknown[]; joinsOverride?: unknown[] }) =>

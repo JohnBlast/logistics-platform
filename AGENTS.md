@@ -15,22 +15,27 @@ Guidance for AI agents working on this codebase.
 | **.specify/specs/002-data-discovery/data-quality.md** | Data quality contract for Discovery pipeline | Dirty data patterns, normalization rules per layer, field alias mappings, number/date format handling |
 | **.specify/specs/002-data-discovery/prompt-spec.md** | System prompt specification (versioned contract) | Modifying Claude's system prompt; prompt structure, rules, examples, dynamic injection points |
 | **.specify/specs/002-data-discovery/e2e-scenarios.md** | End-to-end test scenarios for Discovery | Full pipeline scenarios with sample data, expected TableInstruction shapes, expected output per query pattern |
+| **.specify/specs/003-job-market/003-PRD-job-market.md** | Golden source for Job Market | Specifying, clarifying, validating Job Market |
+| **.specify/specs/003-job-market/e2e-scenarios.md** | E2E test scenarios for Job Market | Scoring formulas, acceptance criteria, edge cases, evaluation |
+| **.specify/specs/003-job-market/handoff-checklist.md** | Readiness checklist for Job Market | Pre-implementation validation |
 | **.specify/specs/001-etl-configurator/spec.md** | Derived spec (user stories, acceptance scenarios) | Planning, tasks, implementation |
 | **.specify/platform-data-model.md** | Platform data model (canonical) | Single schema for ETL, Discovery, and all products |
 | **.specify/etl-discovery-integration.md** | ETL→Discovery integration contract | Data flow, shared contract; reference when implementing either product |
 | **.specify/specs/001-etl-configurator/data-model.md** | ETL target schema (conforms to platform) | API design, validation logic |
-| **.specify/memory/constitution.md** | Platform principles | All phases |
+| **.specify/memory/constitution.md** | Platform principles (governance, users, data, delivery) | All phases; see handoff checklist A0 |
 | **PRD.md** | Platform index and condensed summaries | Quick reference; links to golden sources |
 
 ## Spec-Kit Commands
 
-When running `/speckit.specify` or `/speckit.clarify` for **001 ETL Configurator**:
+**When to use commands:** See [.specify/speckit-toolkit.md](.specify/speckit-toolkit.md) for required vs optional commands, initiation flow (step-by-step), and post-implementation triggers (after bug fix, new feature, refinement, validation, etc.).
+
+When running `/speckit-specify` or `/speckit-clarify` for **001 ETL Configurator**:
 - **Always reference** `001-ETL-PRD.md` as the source of truth
 - Include full PRD context when creating or refining requirements
 - Ensure FR-*, GR-*, SC-*, EC-* sections are reflected in the spec
 - For **natural language features** (filters, joins): use `nl-interpretation.md`—define semantic taxonomy, example phrasings, interpretation contract (phrase → structured output), and Given/When/Then acceptance scenarios per [Spec-Kit best practices](https://github.com/github/spec-kit)
 
-When running `/speckit.specify` or `/speckit.clarify` for **002 Logistics Discovery**:
+When running `/speckit-specify` or `/speckit-clarify` for **002 Logistics Discovery**:
 - **Always reference** `.specify/specs/002-data-discovery/002-PRD-discovery.md` as the source of truth
 - Include ETL→Discovery integration: Simulate Pipeline output feeds Discovery; no separate export in MVP
 - Ensure journeys, FRs, and TableInstruction schema (§11) are reflected in the spec
@@ -40,10 +45,24 @@ When running `/speckit.specify` or `/speckit.clarify` for **002 Logistics Discov
 - For **testing**: use `e2e-scenarios.md`—full pipeline scenarios with concrete data, expected TableInstruction shapes, and expected output
 - Set `SPECIFY_FEATURE=002-data-discovery` when working on Discovery
 
+When running `/speckit-specify` or `/speckit-clarify` for **003 Job Market**:
+- **Always reference** `003-PRD-job-market.md` as the source of truth
+- Include full PRD context: journeys (§4), FRs (§4), edge cases (§8), API contract (§10), scoring (§16)
+- For **recommender/acceptance scoring**: use `e2e-scenarios.md` — defines scoring walkthroughs, evaluation scenarios, and boundary expectations
+- For **data model**: use `platform-data-model.md` — Job Market fields (Quote, Load, Vehicle, Driver, Fleet Profile)
+- ADR is a **hard gate** (blocks submission), not a scoring signal — never score adr_match
+- Fleet Profile is **Job Market only** — not in ETL/Discovery
+- Set `SPECIFY_FEATURE=003-job-market` when working on Job Market
+
 ## Feature Context
 
 Set `SPECIFY_FEATURE=001-etl-configurator` when working on ETL in non-Git contexts.
 Set `SPECIFY_FEATURE=002-data-discovery` when working on Logistics Discovery.
+Set `SPECIFY_FEATURE=003-job-market` when working on Job Market.
+
+## Constitution
+
+Platform principles and governance are in [.specify/memory/constitution.md](.specify/memory/constitution.md). Refer to it for users, data handling, development philosophy, and decision priorities.
 
 ## Avoiding Context Loss
 

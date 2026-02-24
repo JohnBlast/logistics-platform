@@ -7,7 +7,8 @@ Spec-Kit compatible specifications and platform documentation.
 ```
 .specify/
 ├── PLATFORM.md              # Spec-Kit index, product navigation
-├── platform-data-model.md    # Canonical schema (ETL, Discovery, all products)
+├── speckit-toolkit.md       # When to use Spec-Kit commands (initiation, post-implementation)
+├── platform-data-model.md   # Canonical schema (ETL, Discovery, all products)
 ├── etl-discovery-integration.md   # ETL→Discovery data flow contract
 ├── requirements-checklist.md      # Quality checklist (from /speckit.checklist)
 ├── memory/
@@ -24,6 +25,7 @@ Spec-Kit compatible specifications and platform documentation.
 | Document | Purpose |
 |----------|---------|
 | [PLATFORM.md](PLATFORM.md) | Product index, Spec-Kit workflow |
+| [speckit-toolkit.md](speckit-toolkit.md) | When to use Spec-Kit commands (initiation, post-implementation) |
 | [platform-data-model.md](platform-data-model.md) | Single schema source of truth |
 | [etl-discovery-integration.md](etl-discovery-integration.md) | How ETL output feeds Discovery |
 | [memory/constitution.md](memory/constitution.md) | Platform principles |

@@ -345,7 +345,12 @@ export function execute(
       }
     }
   } else if (instruction.filters?.length) {
+    const before = baseRows.length
     filtered = applyFilters(baseRows, instruction.filters)
+    const excluded = before - filtered.length
+    if (excluded > 0) {
+      console.log(`[Discovery] filter before=${before} after=${filtered.length} excluded=${excluded}`)
+    }
   } else {
     filtered = baseRows
   }

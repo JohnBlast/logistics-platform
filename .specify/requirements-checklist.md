@@ -68,9 +68,9 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Boundary logging at stages | ⚠ | Add to pipeline (join, filter, transform counts) |
-| Decision logging (why rows dropped) | ⚠ | Filter rules, join misses |
-| Structured format (prefix, searchable) | ⚠ | Recommend [join], [filter], [transform] |
+| Boundary logging at stages | ✓ | pipelineLogger.ts: [enum], [transform], [dedup], [join], [filter] |
+| Decision logging (why rows dropped) | ✓ | Dedup warnings, join misses, filter rule effects |
+| Structured format (prefix, searchable) | ✓ | [join], [filter], [transform], [dedup], [enum] |
 | No PII in logs | — | To verify |
 
 ### G. Final Verification
@@ -154,9 +154,9 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Boundary logging | ⚠ | Discovery query engine; recommend [Discovery] prefix |
-| Decision logging | ⚠ | Filter application, aggregation |
-| Structured format | ⚠ | |
+| Boundary logging | ✓ | queryEngine.ts: [Discovery] prefix (baseRows, filtered, result) |
+| Decision logging | ✓ | Filter excluded count when filters reduce rows |
+| Structured format | ✓ | [Discovery] filter before=N after=M excluded=X |
 | No PII | — | |
 
 ### G. Final Verification
@@ -179,10 +179,10 @@
 | C. Data Pipeline | Partial | Complete |
 | D. Multi-Component | Partial | Complete |
 | E. RAG | N/A | N/A |
-| F. Observability | Needs work | Needs work |
+| F. Observability | ✓ | ✓ |
 | G. Final Verification | Complete | Complete |
 
-**Recommendation:** Before new implementation work, add boundary and decision logging per handoff checklist §F. For 001, consider adding `e2e-scenarios.md` if regression coverage is desired. For 002, Discovery is ready for `/speckit.implement`; observability should be added during implementation.
+**Recommendation:** Boundary and decision logging (F) implemented. For 001, consider adding `e2e-scenarios.md` if regression coverage is desired. For 002, Discovery is ready for further changes.
 
 ---
 

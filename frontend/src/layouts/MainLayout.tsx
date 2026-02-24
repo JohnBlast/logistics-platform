@@ -54,7 +54,13 @@ export function MainLayout({ children }: MainLayoutProps) {
             >
               Data Discovery
             </Link>
-            <span className="block px-4 py-2 text-[rgba(0,0,0,0.38)] text-xs">Job Market (planned)</span>
+            <Link
+              data-testid="nav-jobmarket"
+              to="/jobmarket"
+              className={`block px-4 py-2.5 text-sm transition-colors ${loc.pathname === '/jobmarket' ? 'bg-[rgba(25,118,210,0.08)] text-primary font-medium' : 'text-[rgba(0,0,0,0.6)] hover:bg-black/4'}`}
+            >
+              Job Market
+            </Link>
           </div>
         </nav>
       </aside>

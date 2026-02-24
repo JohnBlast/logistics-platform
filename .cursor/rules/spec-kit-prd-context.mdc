@@ -1,7 +1,6 @@
 ---
 description: PRD hierarchy and spec-kit context for logistics platform
-globs: .specify/**/*, PRD.md, AGENTS.md
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Spec-Kit & PRD Context

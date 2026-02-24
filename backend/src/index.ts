@@ -10,6 +10,7 @@ import { joinsRouter } from './api/joins.js'
 import { schemaRouter } from './api/schema.js'
 import { chatRouter } from './api/chat.js'
 import { discoveryRouter } from './api/discovery.js'
+import { jobmarketRouter } from './api/jobmarket.js'
 import { isClaudeAvailable } from './services/claudeService.js'
 
 const PORT = process.env.PORT || 3001
@@ -27,6 +28,7 @@ app.use('/api/joins', joinsRouter)
 app.use('/api/schema', schemaRouter)
 app.use('/api/chat', chatRouter)
 app.use('/api/discovery', discoveryRouter)
+app.use('/api/job-market', jobmarketRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })

@@ -24,6 +24,8 @@ Discovery consumes data from the **Simulate Pipeline** (Show Overall Data) page:
 
 ## Spec-Kit Workflow
 
+See [../../speckit-toolkit.md](../../speckit-toolkit.md) for when to use each command (initiation vs post-implementation).
+
 When building this product with [Spec-Kit](https://github.com/github/spec-kit):
 
 1. **Set feature context:** `SPECIFY_FEATURE=002-data-discovery`
@@ -32,6 +34,6 @@ When building this product with [Spec-Kit](https://github.com/github/spec-kit):
 4. **Clarify:** ✓ [clarifications.md](clarifications.md) — resolved underspecified areas
 5. **Plan:** ✓ [plan.md](plan.md) — Vite, React, same backend monorepo
 6. **Tasks:** ✓ [tasks.md](tasks.md) — Task breakdown by phase
-7. **Implement:** `/speckit.implement` to execute tasks
+7. **Implement:** `/speckit-implement` to execute tasks
 
 Ensure implementation integrates with existing ETL routes and pipeline API (e.g. `/api/pipeline/run` output) so Discovery receives the Simulate Pipeline data.

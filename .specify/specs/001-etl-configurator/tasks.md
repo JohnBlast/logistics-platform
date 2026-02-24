@@ -14,13 +14,13 @@
 
 **Purpose**: Project initialization, monorepo, tooling
 
-- [ ] T001 Create monorepo: root `package.json` with workspaces (pnpm or npm), `frontend/` and `backend/` packages
-- [ ] T002 [P] Init `frontend/`: Vite + React 18 + TypeScript; `frontend/package.json`, `vite.config.ts`, `tsconfig.json`
-- [ ] T003 [P] Init `backend/`: Express + TypeScript; `backend/package.json`, `tsconfig.json`; entry `backend/src/index.ts`
-- [ ] T004 [P] Add backend deps: express, better-sqlite3, papaparse, xlsx, @anthropic-ai/sdk
-- [ ] T005 [P] Add frontend deps: react, react-dom, react-router-dom; Tailwind (or chosen UI approach)
-- [ ] T006 [P] Configure Vitest for `backend/tests/` and `frontend/tests/`
-- [ ] T007 Create `.env.example`: `ANTHROPIC_API_KEY`, `AI_MODE`, `DATABASE_PATH`, `PORT`, `VITE_API_URL`
+- [x] T001 Create monorepo: root `package.json` with workspaces (pnpm or npm), `frontend/` and `backend/` packages
+- [x] T002 [P] Init `frontend/`: Vite + React 18 + TypeScript; `frontend/package.json`, `vite.config.ts`, `tsconfig.json`
+- [x] T003 [P] Init `backend/`: Express + TypeScript; `backend/package.json`, `tsconfig.json`; entry `backend/src/index.ts`
+- [x] T004 [P] Add backend deps: express, better-sqlite3, papaparse, xlsx, @anthropic-ai/sdk
+- [x] T005 [P] Add frontend deps: react, react-dom, react-router-dom; Tailwind (or chosen UI approach)
+- [x] T006 [P] Configure Vitest for `backend/tests/` and `frontend/tests/`
+- [x] T007 Create `.env.example`: `ANTHROPIC_API_KEY`, `AI_MODE`, `DATABASE_PATH`, `PORT`, `VITE_API_URL`
 
 **Checkpoint**: `pnpm install` works; `pnpm --filter backend dev` and `pnpm --filter frontend dev` start
 
@@ -32,32 +32,32 @@
 
 ### Data & Storage
 
-- [ ] T008 Define data model types in `backend/src/models/schema.ts`: Quote, Load, Driver, Vehicle field definitions (required/optional, types, enums) per data-model.md
-- [ ] T009 Create SQLite schema in `backend/src/models/db.ts`: `profiles` table (id, name, description, status, dataModelVersion, aiMode, mappings, joins, filters, createdAt, updatedAt)
-- [ ] T010 Implement `ProfileStore` in `backend/src/services/profileStore.ts`: create, get, list, update, delete, duplicate
-- [ ] T011 Seed default template profile on first run (or migration): one Draft profile with empty config
+- [x] T008 Define data model types in `backend/src/models/schema.ts`: Quote, Load, Driver, Vehicle field definitions (required/optional, types, enums) per data-model.md
+- [x] T009 Create SQLite schema in `backend/src/models/db.ts`: `profiles` table (id, name, description, status, dataModelVersion, aiMode, mappings, joins, filters, createdAt, updatedAt)
+- [x] T010 Implement `ProfileStore` in `backend/src/services/profileStore.ts`: create, get, list, update, delete, duplicate
+- [x] T011 Seed default template profile on first run (or migration): one Draft profile with empty config
 
 ### API – Profiles
 
-- [ ] T012 Implement `GET /api/profiles` in `backend/src/api/profiles.ts` — list all profiles
-- [ ] T013 Implement `POST /api/profiles` — create (name, description, dataModelVersion, aiMode required)
-- [ ] T014 Implement `GET /api/profiles/:id` — get single profile
-- [ ] T015 Implement `PATCH /api/profiles/:id` — update (Draft only; reject Active/Archived)
-- [ ] T016 Implement `POST /api/profiles/:id/duplicate` — create Draft copy
-- [ ] T017 Implement `DELETE /api/profiles/:id` — delete with guardrail: block if last profile (C-1)
+- [x] T012 Implement `GET /api/profiles` in `backend/src/api/profiles.ts` — list all profiles
+- [x] T013 Implement `POST /api/profiles` — create (name, description, dataModelVersion, aiMode required)
+- [x] T014 Implement `GET /api/profiles/:id` — get single profile
+- [x] T015 Implement `PATCH /api/profiles/:id` — update (Draft only; reject Active/Archived)
+- [x] T016 Implement `POST /api/profiles/:id/duplicate` — create Draft copy
+- [x] T017 Implement `DELETE /api/profiles/:id` — delete with guardrail: block if last profile (C-1)
 
 ### Frontend – Shell
 
-- [ ] T018 Create `frontend/src/layouts/MainLayout.tsx`: sidebar with ETL, Data Discovery, Job Market; ETL active for 001
-- [ ] T019 Create `frontend/src/pages/ProfilesList.tsx`: list profiles; Create, Duplicate, Delete (with confirm modal per C-2)
-- [ ] T020 Configure React Router: `/etl` → ProfilesList, `/etl/model`, `/etl/profiles/:id`, `/etl/simulate`
-- [ ] T021 Create `frontend/src/services/api.ts`: fetch wrapper for `VITE_API_URL`; types for Profile
+- [x] T018 Create `frontend/src/layouts/MainLayout.tsx`: sidebar with ETL, Data Discovery, Job Market; ETL active for 001
+- [x] T019 Create `frontend/src/pages/ProfilesList.tsx`: list profiles; Create, Duplicate, Delete (with confirm modal per C-2)
+- [x] T020 Configure React Router: `/etl` → ProfilesList, `/etl/model`, `/etl/profiles/:id`, `/etl/simulate`
+- [x] T021 Create `frontend/src/services/api.ts`: fetch wrapper for `VITE_API_URL`; types for Profile
 
 ### ETL Flow Shell
 
-- [ ] T022 Create `frontend/src/pages/ETLFlow.tsx`: step indicator (Configuration Profiles → Ingestion → Mapping → Joins → Filtering → Validation); current step from route/state
-- [ ] T023 Add placeholder steps in ETLFlow: Ingestion, Mapping, Joins, Filtering, Validation (empty content for now)
-- [ ] T024 Enforce 1280px min width in layout (GR-10.3)
+- [x] T022 Create `frontend/src/pages/ETLFlow.tsx`: step indicator (Configuration Profiles → Ingestion → Mapping → Joins → Filtering → Validation); current step from route/state
+- [x] T023 Add placeholder steps in ETLFlow: Ingestion, Mapping, Joins, Filtering, Validation (empty content for now)
+- [x] T024 Enforce 1280px min width in layout (GR-10.3)
 
 **Checkpoint**: Can create/list/duplicate/delete profiles; navigate ETL flow; sidebar works
 
@@ -69,18 +69,18 @@
 
 ### Backend – Parsing & Generation
 
-- [ ] T025 Implement `FileParser` in `backend/src/parsers/fileParser.ts`: parse CSV (papaparse), Excel (xlsx first sheet only per C-5); reject >10MB (GR-2.3), non-CSV/Excel (GR-2.2), parse errors (GR-2.4)
-- [ ] T026 Implement `DirtyDataGenerator` in `backend/src/generators/dirtyDataGenerator.ts`: generate Quote (100), Load (50), Driver+Vehicle (50) per FR-4.4a–g; deterministic seed for tests
-- [ ] T027 Implement `POST /api/ingest/upload`: accept multipart file; return `{ headers, rows }` or error
-- [ ] T028 Implement `POST /api/ingest/generate`: body `{ objectType: 'quote'|'load'|driver_vehicle' }`; return generated rows
+- [x] T025 Implement `FileParser` in `backend/src/parsers/fileParser.ts`: parse CSV (papaparse), Excel (xlsx first sheet only per C-5); reject >10MB (GR-2.3), non-CSV/Excel (GR-2.2), parse errors (GR-2.4)
+- [x] T026 Implement `DirtyDataGenerator` in `backend/src/generators/dirtyDataGenerator.ts`: generate Quote (100), Load (50), Driver+Vehicle (50) per FR-4.4a–g; deterministic seed for tests
+- [x] T027 Implement `POST /api/ingest/upload`: accept multipart file; return `{ headers, rows }` or error
+- [x] T028 Implement `POST /api/ingest/generate`: body `{ objectType: 'quote'|'load'|driver_vehicle' }`; return generated rows
 
 ### Frontend – Ingestion Page
 
-- [ ] T029 Create `frontend/src/pages/Ingestion.tsx`: data model breakdown per object (Load, Quote, Driver+Vehicle); Upload + Generate buttons per object
-- [ ] T030 Implement Upload: drag-and-drop or file picker; call `/api/ingest/upload`; show filename, row count, error on reject
-- [ ] T031 Implement Generate: call `/api/ingest/generate` per object; show row count; regenerate replaces (GR-2.6)
-- [ ] T032 Create `DataPreview` component: collapsible panels, 5–10 rows (C-7); use in Ingestion
-- [ ] T033 Gate "Next" to Mapping: enable only when all three objects have data (GR-2.1)
+- [x] T029 Create `frontend/src/pages/Ingestion.tsx`: data model breakdown per object (Load, Quote, Driver+Vehicle); Upload + Generate buttons per object
+- [x] T030 Implement Upload: drag-and-drop or file picker; call `/api/ingest/upload`; show filename, row count, error on reject
+- [x] T031 Implement Generate: call `/api/ingest/generate` per object; show row count; regenerate replaces (GR-2.6)
+- [x] T032 Create `DataPreview` component: collapsible panels, 5–10 rows (C-7); use in Ingestion
+- [x] T033 Gate "Next" to Mapping: enable only when all three objects have data (GR-2.1)
 
 **Checkpoint**: Can upload CSV/Excel or generate for all three; see preview; proceed to Mapping when ready
 
@@ -92,20 +92,20 @@
 
 ### Backend – Mapping
 
-- [ ] T034 Implement `MappingService` in `backend/src/services/mappingService.ts`: validate 1:1 mapping; apply mappings to rows
-- [ ] T035 Implement `POST /api/mapping/suggest`: input `{ objectType, sourceHeaders, sourceRows }`; output `{ suggestions: [{ targetField, sourceColumn, confidence }] }`; use Claude or mocked logic per AI_MODE
-- [ ] T036 Implement mocked mapping suggestions: fuzzy match column names to target schema (FR-4.4c style variations)
+- [x] T034 Implement `MappingService` in `backend/src/services/mappingService.ts`: validate 1:1 mapping; apply mappings to rows
+- [x] T035 Implement `POST /api/mapping/suggest`: input `{ objectType, sourceHeaders, sourceRows }`; output `{ suggestions: [{ targetField, sourceColumn, confidence }] }`; use Claude or mocked logic per AI_MODE
+- [x] T036 Implement mocked mapping suggestions: fuzzy match column names to target schema (FR-4.4c style variations)
 
 ### Frontend – Mapping Page
 
-- [ ] T037 Create `frontend/src/pages/Mapping.tsx`: split by Quote, Load, Driver+Vehicle; each section: target fields (required/optional), dropdown to pick source column
-- [ ] T038 Show progress per object: "X/Y mapped"; support collapse/expand (FR-5.3)
-- [ ] T039 On load or "Suggest mappings": call `/api/mapping/suggest`; display suggestions with confidence; user can lock individual mappings
-- [ ] T040 Implement "Suggest remaining": call suggest with locked mappings excluded; only update unlocked fields (GR-3.6)
-- [ ] T041 Gate "Next" to Joins: enable only when all required fields mapped (GR-3.1)
-- [ ] T042 Implement error suggestions for unmapped required: "Suggest mapping source column 'X' → target" with Apply button (US3, FR-1.9)
-- [ ] T043 Implement error suggestions for invalid enum: suggest valid value; Apply (US3)
-- [ ] T044 Mapping dropdown: search/filter when many columns (EC-2.6)
+- [x] T037 Create `frontend/src/pages/Mapping.tsx`: split by Quote, Load, Driver+Vehicle; each section: target fields (required/optional), dropdown to pick source column
+- [x] T038 Show progress per object: "X/Y mapped"; support collapse/expand (FR-5.3)
+- [x] T039 On load or "Suggest mappings": call `/api/mapping/suggest`; display suggestions with confidence; user can lock individual mappings
+- [x] T040 Implement "Suggest remaining": call suggest with locked mappings excluded; only update unlocked fields (GR-3.6)
+- [x] T041 Gate "Next" to Joins: enable only when all required fields mapped (GR-3.1)
+- [x] T042 Implement error suggestions for unmapped required: "Suggest mapping source column 'X' → target" with Apply button (US3, FR-1.9)
+- [x] T043 Implement error suggestions for invalid enum: suggest valid value; Apply (US3)
+- [x] T044 Mapping dropdown: search/filter when many columns (EC-2.6)
 
 **Checkpoint**: Can map all required fields; AI suggests; lock & suggest remaining; errors with Apply; proceed to Joins
 
@@ -117,27 +117,27 @@
 
 ### Backend – Joins
 
-- [ ] T045 Implement `JoinService` in `backend/src/services/joinService.ts`: execute Quote→Load→Driver+Vehicle (INNER); user-provided keys/fallbacks; drop rows with missing IDs (GR-4.5)
-- [ ] T046 Implement `POST /api/joins/interpret`: input NL; output structured join config (Claude or mocked)
-- [ ] T047 Implement join validation: reject if keys missing (GR-4.1); enforce order (GR-4.3)
+- [x] T045 Implement `JoinService` in `backend/src/services/joinService.ts`: execute Quote→Load→Driver+Vehicle (INNER); user-provided keys/fallbacks; drop rows with missing IDs (GR-4.5)
+- [x] T046 Implement `POST /api/joins/interpret`: input NL; output structured join config (Claude or mocked)
+- [x] T047 Implement join validation: reject if keys missing (GR-4.1); enforce order (GR-4.3)
 
 ### Backend – Filtering
 
-- [ ] T048 Implement `FilterService` in `backend/src/services/filterService.ts`: apply inclusion/exclusion rules to flat table; order: inclusion first, exclusion second (C-11)
-- [ ] T049 Implement `POST /api/filters/interpret`: input NL; output structured filter (Claude or mocked)
-- [ ] T050 Reject filter rules referencing non-existent fields (GR-5.4); reject unparseable (GR-5.1)
+- [x] T048 Implement `FilterService` in `backend/src/services/filterService.ts`: apply inclusion/exclusion rules to flat table; order: inclusion first, exclusion second (C-11)
+- [x] T049 Implement `POST /api/filters/interpret`: input NL; output structured filter (Claude or mocked)
+- [x] T050 Reject filter rules referencing non-existent fields (GR-5.4); reject unparseable (GR-5.1)
 
 ### Frontend – Joins Page
 
-- [ ] T051 Create `frontend/src/pages/Joins.tsx`: list join ops (Quote→Load, Load→Driver+Vehicle); define keys and fallbacks (vehicle_id or driver_id)
-- [ ] T052 Optional NL input for joins; call `/api/joins/interpret`; show result, editable
-- [ ] T053 Before/after preview: row count change after joins (collapsible)
+- [x] T051 Create `frontend/src/pages/Joins.tsx`: list join ops (Quote→Load, Load→Driver+Vehicle); define keys and fallbacks (vehicle_id or driver_id)
+- [x] T052 Optional NL input for joins; call `/api/joins/interpret`; show result, editable
+- [x] T053 Before/after preview: row count change after joins (collapsible)
 
 ### Frontend – Filtering Page
 
-- [ ] T054 Create `frontend/src/pages/Filtering.tsx`: add inclusion/exclusion rules; NL input; call `/api/filters/interpret`
-- [ ] T055 Rule list: edit, remove; before/after row count
-- [ ] T056 Warn when filters would drop all rows (GR-5.2)
+- [x] T054 Create `frontend/src/pages/Filtering.tsx`: add inclusion/exclusion rules; NL input; call `/api/filters/interpret`
+- [x] T055 Rule list: edit, remove; before/after row count
+- [x] T056 Warn when filters would drop all rows (GR-5.2)
 
 **Checkpoint**: Can configure joins and filters; NL interpret; preview; proceed to Validation
 
@@ -149,19 +149,19 @@
 
 ### Backend – Pipeline
 
-- [ ] T057 Implement `ValidationService` in `backend/src/services/validationService.ts`: run dedup → joins → filter; return `{ rowsSuccessful, rowsDropped, fieldsWithWarnings }`
-- [ ] T058 Implement dedup in `backend/src/services/deduplicationService.ts`: per entity, keep latest by updated_at; tie-break: first (C-4); exclude rows with null updated_at, warn (C-3)
-- [ ] T059 Implement `POST /api/pipeline/validate`: input profile id + session dirty data; run full pipeline; return summary
-- [ ] T060 Implement `POST /api/pipeline/run`: same as validate but for Show Overall Data; uses Active config
+- [x] T057 Implement `ValidationService` in `backend/src/services/validationService.ts`: run dedup → joins → filter; return `{ rowsSuccessful, rowsDropped, fieldsWithWarnings }`
+- [x] T058 Implement dedup in `backend/src/services/deduplicationService.ts`: per entity, keep latest by updated_at; tie-break: first (C-4); exclude rows with null updated_at, warn (C-3)
+- [x] T059 Implement `POST /api/pipeline/validate`: input profile id + session dirty data; run full pipeline; return summary
+- [x] T060 Implement `POST /api/pipeline/run`: same as validate but for Show Overall Data; uses Active config
 
 ### Frontend – Validation Page
 
-- [ ] T061 Create `frontend/src/pages/Validation.tsx`: "Run validation" button; call `/api/pipeline/validate`
-- [ ] T062 Summary view: rows successful, dropped, fields with warnings (C-8)
-- [ ] T063 Save gate: enable only when ≥1 row succeeds (GR-6.1); disable until validation run (GR-6.2)
-- [ ] T064 On Save: PATCH profile status; set new Active, previous Active → Archived (FR-9.6)
-- [ ] T065 Success feedback: stay on Validation step; toast/banner (C-9)
-- [ ] T066 Re-run validation when config or data changes (GR-6.3, GR-6.4)
+- [x] T061 Create `frontend/src/pages/Validation.tsx`: "Run validation" button; call `/api/pipeline/validate`
+- [x] T062 Summary view: rows successful, dropped, fields with warnings (C-8)
+- [x] T063 Save gate: enable only when ≥1 row succeeds (GR-6.1); disable until validation run (GR-6.2)
+- [x] T064 On Save: PATCH profile status; set new Active, previous Active → Archived (FR-9.6)
+- [x] T065 Success feedback: stay on Validation step; toast/banner (C-9)
+- [x] T066 Re-run validation when config or data changes (GR-6.3, GR-6.4)
 
 **Checkpoint**: Full ETL flow works: generate → map → join → filter → validate → save; config becomes Active
 
@@ -171,11 +171,11 @@
 
 **Purpose**: Simulate pipeline, view flat table. Enables US2.
 
-- [ ] T067 Create `frontend/src/pages/ShowOverallData.tsx`: block access if no Active profile (GR-8.1); show empty state
-- [ ] T068 Generate button: call generate for all three; replace previous run (GR-8.3)
-- [ ] T069 Run button: call `/api/pipeline/run`; display flat table (post-join, post-filter)
-- [ ] T070 Table: flat wide table; pagination or virtual scroll for large sets (EC-9.4)
-- [ ] T071 Link/tab to Show Overall Data from ETL area
+- [x] T067 Create `frontend/src/pages/ShowOverallData.tsx`: block access if no Active profile (GR-8.1); show empty state
+- [x] T068 Generate button: call generate for all three; replace previous run (GR-8.3)
+- [x] T069 Run button: call `/api/pipeline/run`; display flat table (post-join, post-filter)
+- [x] T070 Table: flat wide table; pagination or virtual scroll for large sets (EC-9.4)
+- [x] T071 Link/tab to Show Overall Data from ETL area
 
 **Checkpoint**: With Active profile, can generate → run → see flat table
 
@@ -185,10 +185,10 @@
 
 **Purpose**: View data model before/during ETL. Enables US5, US8.
 
-- [ ] T072 Create `frontend/src/pages/DataModelPreview.tsx`: list Quote, Load, Driver, Vehicle; per field: required/optional, description, format, examples (FR-2.1, FR-2.2)
-- [ ] T073 Add route `/etl/model`; link from sidebar or ETL entry
-- [ ] T074 Create `DataModelPopover` component: modal/slide-over; full model (C-10)
-- [ ] T075 Add "View data model" trigger in Mapping, Joins, Filtering; open popover
+- [x] T072 Create `frontend/src/pages/DataModelPreview.tsx`: list Quote, Load, Driver, Vehicle; per field: required/optional, description, format, examples (FR-2.1, FR-2.2)
+- [x] T073 Add route `/etl/model`; link from sidebar or ETL entry
+- [x] T074 Create `DataModelPopover` component: modal/slide-over; full model (C-10)
+- [x] T075 Add "View data model" trigger in Mapping, Joins, Filtering; open popover
 
 **Checkpoint**: Data model viewable before ETL and during config steps
 
@@ -198,16 +198,16 @@
 
 **Purpose**: All GR-*; edge cases; UX polish.
 
-- [ ] T076 Delete confirmation modal (C-2)
-- [ ] T077 Block delete of last profile (C-1)
-- [ ] T078 Reject upload: >10MB, non-CSV/Excel, parse errors — clear messages (GR-2.2–2.5)
-- [ ] T079 Empty file (headers only): reject or warn (GR-2.5)
-- [ ] T080 Invalid enum: warning + null; do not drop row (FR-11.1, GR-7.2)
-- [ ] T081 Preserve Draft on navigation; dirty data session-only (GR-10.2)
-- [ ] T082 AI timeout/error: show message; allow retry; no partial apply (GR-9.3)
-- [ ] T083 Loading states for async ops (generate, suggest, validate, run)
-- [ ] T084 Error states: inline errors; step indicator reflects errors
-- [ ] T085 Update `quickstart.md` with actual commands; validate run
+- [x] T076 Delete confirmation modal (C-2)
+- [x] T077 Block delete of last profile (C-1)
+- [x] T078 Reject upload: >10MB, non-CSV/Excel, parse errors — clear messages (GR-2.2–2.5)
+- [x] T079 Empty file (headers only): reject or warn (GR-2.5)
+- [x] T080 Invalid enum: warning + null; do not drop row (FR-11.1, GR-7.2)
+- [x] T081 Preserve Draft on navigation; dirty data session-only (GR-10.2)
+- [x] T082 AI timeout/error: show message; allow retry; no partial apply (GR-9.3)
+- [x] T083 Loading states for async ops (generate, suggest, validate, run)
+- [x] T084 Error states: inline errors; step indicator reflects errors
+- [x] T085 Update `quickstart.md` with actual commands; validate run
 
 ---
 
@@ -215,14 +215,14 @@
 
 **Purpose**: Verify critical paths; regression safety.
 
-- [ ] T086 [P] Unit test `DirtyDataGenerator`: row counts, IDs valid, schema compliance
-- [ ] T087 [P] Unit test `JoinService`: correct join order; drop orphan rows
-- [ ] T088 [P] Unit test `FilterService`: inclusion before exclusion; field existence
-- [ ] T089 [P] Unit test `FileParser`: CSV parse; Excel first sheet; reject >10MB
-- [ ] T090 Integration test: `POST /api/profiles` → create → `GET /api/profiles` → list
-- [ ] T091 Integration test: generate all → map → join → filter → validate → ≥1 row success
-- [ ] T092 [P] Frontend: ProfilesList — Create, list, Duplicate
-- [ ] T093 [P] Frontend: Ingestion — Generate; gate to Mapping
+- [x] T086 [P] Unit test `DirtyDataGenerator`: row counts, IDs valid, schema compliance
+- [x] T087 [P] Unit test `JoinService`: correct join order; drop orphan rows
+- [x] T088 [P] Unit test `FilterService`: inclusion before exclusion; field existence
+- [x] T089 [P] Unit test `FileParser`: CSV parse; Excel first sheet; reject >10MB
+- [x] T090 Integration test: `POST /api/profiles` → create → `GET /api/profiles` → list
+- [x] T091 Integration test: generate all → map → join → filter → validate → ≥1 row success
+- [x] T092 [P] Frontend: ProfilesList — Create, list, Duplicate
+- [x] T093 [P] Frontend: Ingestion — Generate; gate to Mapping
 
 ---
 

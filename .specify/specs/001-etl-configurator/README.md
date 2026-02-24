@@ -16,12 +16,14 @@
 
 ## Spec-Kit Workflow
 
+See [../../speckit-toolkit.md](../../speckit-toolkit.md) for when to use each command (initiation vs post-implementation).
+
 1. **Source**: Read `001-ETL-PRD.md` as the authoritative input.
-2. **Specify**: Use `/speckit.specify` with the PRD as context to produce or refine `spec.md`.
-3. **Clarify**: Use `/speckit.clarify` to resolve underspecified areas before planning.
-4. **Plan**: Use `/speckit.plan` with tech stack; produces `plan.md`. ✓
-5. **Tasks**: Use `/speckit.tasks`; produces `tasks.md`. ✓
-6. **Implement**: Use `/speckit.implement` to execute.
+2. **Specify**: Use `/speckit-specify` with the PRD as context to produce or refine `spec.md`.
+3. **Clarify**: Use `/speckit-clarify` to resolve underspecified areas before planning.
+4. **Plan**: Use `/speckit-plan` with tech stack; produces `plan.md`. ✓
+5. **Tasks**: Use `/speckit-tasks`; produces `tasks.md`. ✓
+6. **Implement**: Use `/speckit-implement` to execute.
 
 ## Key PRD Sections (for context)
 

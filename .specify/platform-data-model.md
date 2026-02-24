@@ -1,8 +1,8 @@
 # Platform Data Model
 
-**Status**: Canonical for all products  
-**Products**: 001 ETL Configurator, 002 Logistics Discovery (and future products)  
-**Last updated**: 2025-02-20
+**Status**: Canonical for all products
+**Products**: 001 ETL Configurator, 002 Logistics Discovery, 003 Job Market
+**Last updated**: 2026-02-23
 
 ---
 
@@ -23,6 +23,7 @@ The platform uses a **single data model** across all products. The ETL Configura
 | Driver | Person operating vehicle; belongs to fleet |
 | Vehicle | Truck/van; type enum; has optional driver_id |
 | Fleet | Logistics company (implied via fleet_id) |
+| Fleet Profile | Company-level profile for a fleet: name, rating, job count (003 Job Market) |
 
 ---
 
@@ -40,6 +41,9 @@ The platform uses a **single data model** across all products. The ETL Configura
 | associated_fleet_id | UUID | Yes | Fleet making the quote (tenant identifier for Fleet Operator) |
 | fleet_quoter_name | VARCHAR | Yes | Name of person who quoted |
 | requested_vehicle_type | enum | Yes | Vehicle type requested |
+| eta_to_collection | INTEGER | No | Estimated minutes from vehicle to collection point (003) |
+| offered_vehicle_type | enum | No | Vehicle type the fleet is offering for this quote (003) |
+| adr_certified | BOOLEAN | No | Whether the assigned driver has ADR certification (003) |
 | created_at | TIMESTAMP | Yes | Record creation timestamp |
 | updated_at | TIMESTAMP | Yes | Last update timestamp |
 
@@ -62,6 +66,7 @@ The platform uses a **single data model** across all products. The ETL Configura
 | allocated_vehicle_id | UUID | No | Vehicle assigned to the load |
 | driver_id | UUID | No | Driver assigned to the load |
 | number_of_items | INTEGER | No | Number of items in the load |
+| adr_required | BOOLEAN | Yes | Whether the load requires ADR-certified driver (003) |
 | created_at | TIMESTAMP | Yes | Record creation timestamp |
 | updated_at | TIMESTAMP | Yes | Last update timestamp |
 
@@ -73,6 +78,7 @@ The platform uses a **single data model** across all products. The ETL Configura
 | fleet_id | UUID | Yes | Fleet the driver belongs to |
 | email | VARCHAR | No | Driver email |
 | phone | VARCHAR | No | Driver phone number |
+| has_adr_certification | BOOLEAN | Yes | Whether driver holds ADR dangerous goods certification (003) |
 | created_at | TIMESTAMP | Yes | Record creation timestamp |
 | updated_at | TIMESTAMP | Yes | Last update timestamp |
 
@@ -84,8 +90,23 @@ The platform uses a **single data model** across all products. The ETL Configura
 | registration_number | VARCHAR | Yes | Vehicle registration plate |
 | capacity_kg | DECIMAL | No | Maximum load capacity in kg |
 | driver_id | UUID | No | Assigned driver (optional) |
+| current_city | VARCHAR | No | Town/city where vehicle is currently located; maps to UK hubs lookup for lat/lng (003) |
 | created_at | TIMESTAMP | Yes | Record creation timestamp |
 | updated_at | TIMESTAMP | Yes | Last update timestamp |
+
+### Fleet Profile
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| fleet_id | UUID | Yes | Fleet identifier (PK, references Fleet) |
+| company_name | VARCHAR | Yes | Fleet company name |
+| total_jobs_completed | INTEGER | Yes | Count of completed jobs |
+| rating | DECIMAL | Yes | Company-level rating (1.0–5.0) |
+| driver_count | INTEGER | No | Number of active drivers |
+| vehicle_count | INTEGER | No | Number of active vehicles |
+| created_at | TIMESTAMP | Yes | Record creation timestamp |
+| updated_at | TIMESTAMP | Yes | Last update timestamp |
+
+**Product scope:** Fleet Profile is a Job Market (003) data object only. It is not part of the ETL pipeline output or Discovery views.
 
 ---
 

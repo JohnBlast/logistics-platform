@@ -6,6 +6,13 @@ import { validateEnumsInRows } from './enumValidation.js'
 import { applyEnumMappings } from './enumMappingService.js'
 import { applyTransformations } from './transformationService.js'
 import { buildMockedTransformConfig } from './transformConfigService.js'
+import {
+  logTransformBoundary,
+  logEnumBoundary,
+  logDedupBoundary,
+  logJoinBoundary,
+  logFilterBoundary,
+} from './pipelineLogger.js'
 export interface ValidationSummary {
   rowsSuccessful: number
   rowsDropped: number
@@ -77,20 +84,35 @@ export function runValidation(
   let dvRows = applyMappings(d, dvMappings)
 
   const enumMappings = profile.enumMappings
+  const qBeforeEnum = quoteRows.length
+  const lBeforeEnum = loadRows.length
+  const dBeforeEnum = dvRows.length
   quoteRows = applyEnumMappings(quoteRows, 'quote', enumMappings)
   loadRows = applyEnumMappings(loadRows, 'load', enumMappings)
   dvRows = applyEnumMappings(dvRows, 'driver_vehicle', enumMappings)
+  logEnumBoundary('quote', qBeforeEnum, quoteRows.length)
+  logEnumBoundary('load', lBeforeEnum, loadRows.length)
+  logEnumBoundary('driver_vehicle', dBeforeEnum, dvRows.length)
 
   const transformConfig = profile.transformConfig ?? buildMockedTransformConfig()
+  const qBeforeT = quoteRows.length
+  const lBeforeT = loadRows.length
+  const dBeforeT = dvRows.length
   quoteRows = applyTransformations(quoteRows, 'quote', transformConfig)
   loadRows = applyTransformations(loadRows, 'load', transformConfig)
   dvRows = applyTransformations(dvRows, 'driver_vehicle', transformConfig)
+  logTransformBoundary('quote', qBeforeT, quoteRows.length)
+  logTransformBoundary('load', lBeforeT, loadRows.length)
+  logTransformBoundary('driver_vehicle', dBeforeT, dvRows.length)
 
   const totalBefore = quoteRows.length + loadRows.length + dvRows.length
 
   const qDedup = deduplicate(quoteRows, 'quote', 'quote_id', 'updated_at')
   const lDedup = deduplicate(loadRows, 'load', 'load_id', 'updated_at')
   const dDedup = deduplicate(dvRows, 'driver_vehicle', 'vehicle_id', 'updated_at')
+  logDedupBoundary('quote', quoteRows.length, qDedup.rows.length, qDedup.warnings)
+  logDedupBoundary('load', loadRows.length, lDedup.rows.length, lDedup.warnings)
+  logDedupBoundary('driver_vehicle', dvRows.length, dDedup.rows.length, dDedup.warnings)
   quoteRows = qDedup.rows
   loadRows = lDedup.rows
   dvRows = dDedup.rows
@@ -100,6 +122,9 @@ export function runValidation(
   const joinResult = runJoinsWithSteps(quoteRows, loadRows, dvRows, profileJoins)
   let flat = joinResult.rows
   const joinSteps = joinResult.steps
+  for (const s of joinSteps) {
+    logJoinBoundary(s.name, s.leftEntity, s.rightEntity, s.rowsBefore, s.rowsAfter)
+  }
 
   const allFlatCols = [...new Set(flat.flatMap((r) => Object.keys(r)))].filter((c) => !DEPRECATED_FIELDS.has(c))
   flat = flat.map((row) => {
@@ -131,9 +156,11 @@ export function runValidation(
           })
         : filtersToUse
     if (invalidFields.length > 0) filterFieldWarnings = invalidFields
+    const flatCountBeforeFilters = flat.length
     const { result, ruleEffects: effects } = applyFiltersWithRuleEffects(flat, validFilters)
     flat = result
     ruleEffects = effects
+    logFilterBoundary(flatCountBeforeFilters, flat.length, effects)
     const includedSet = new Set(flat.map((r) => JSON.stringify(r)))
     excludedByFilter = flatBeforeFilters.filter((r) => !includedSet.has(JSON.stringify(r)))
     excludedByFilterCount = excludedByFilter.length

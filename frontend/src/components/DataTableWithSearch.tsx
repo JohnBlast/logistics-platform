@@ -11,15 +11,40 @@ interface DataTableWithSearchProps {
   searchPlaceholder?: string
   /** Columns whose null/empty cells get warning styling */
   warningFields?: string[]
+  /** Column order (default: alphabetical) */
+  columns?: string[]
+  /** Callback when a row is clicked */
+  onRowClick?: (row: Record<string, unknown>) => void
+  /** Row key for selection highlight (from getRowKey) */
+  selectedRowKey?: string
+  /** Extract row key for selection (default: index) */
+  getRowKey?: (row: Record<string, unknown>, index: number) => string
+  /** Display labels for column headers (field name → label) */
+  columnLabels?: Record<string, string>
 }
 
-export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchPlaceholder = 'Search...', warningFields }: DataTableWithSearchProps) {
+export function DataTableWithSearch({
+  data,
+  maxRows = 50,
+  pageSize = 25,
+  searchPlaceholder = 'Search...',
+  warningFields,
+  columns: columnsProp,
+  onRowClick,
+  selectedRowKey,
+  getRowKey = (_, i) => String(i),
+  columnLabels,
+}: DataTableWithSearchProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null)
 
-  const cols = [...new Set(data.flatMap((r) => Object.keys(r)))].sort()
+  const allCols = [...new Set(data.flatMap((r) => Object.keys(r)))]
+  const cols =
+    columnsProp && columnsProp.length > 0
+      ? [...columnsProp.filter((c) => allCols.includes(c)), ...allCols.filter((c) => !columnsProp.includes(c))]
+      : allCols.sort()
 
   const getWidth = useCallback((col: string) => colWidths[col] ?? DEFAULT_COL_WIDTH, [colWidths])
 
@@ -125,7 +150,7 @@ export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchP
                   className="relative px-2 py-1.5 text-left font-medium select-none"
                   style={{ width: getWidth(c), minWidth: getWidth(c) }}
                 >
-                  <span className="truncate block">{c}</span>
+                  <span className="truncate block">{columnLabels?.[c] ?? c}</span>
                   <div
                     role="separator"
                     aria-orientation="vertical"
@@ -140,8 +165,15 @@ export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchP
             </tr>
           </thead>
           <tbody>
-            {displayRows.map((row, i) => (
-              <tr key={i} className="border-t hover:bg-black/4">
+            {displayRows.map((row, i) => {
+              const rowKey = getRowKey(row, start + i)
+              const isSelected = selectedRowKey != null && rowKey === selectedRowKey
+              return (
+              <tr
+                key={rowKey}
+                className={`border-t ${onRowClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-primary/8' : 'hover:bg-black/4'}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {cols.map((c) => {
                   const val = row[c]
                   const isWarning = warningFields?.includes(c) && (val == null || val === '')
@@ -156,7 +188,7 @@ export function DataTableWithSearch({ data, maxRows = 50, pageSize = 25, searchP
                   )
                 })}
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
