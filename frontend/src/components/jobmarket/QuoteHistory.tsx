@@ -1,4 +1,5 @@
 /** Quote History — fleet's submitted quotes with acceptance reasoning (US7) */
+import { useState } from 'react'
 import type { Quote } from '../../lib/jobmarket/types'
 import { getFieldLabel, getVehicleTypeLabel } from '../../lib/jobmarket/displayNames'
 
@@ -37,6 +38,8 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
 }
 
 export function QuoteHistory({ quotes, loading, onRefresh, onDeleteQuote }: QuoteHistoryProps) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
   if (loading) return <p className="text-[var(--md-text-secondary)]">Loading quotes…</p>
 
   if (quotes.length === 0) {
@@ -86,15 +89,34 @@ export function QuoteHistory({ quotes, loading, onRefresh, onDeleteQuote }: Quot
               </div>
               <div className="flex items-center gap-1 shrink-0">
               {onDeleteQuote && (
+                confirmDeleteId === q.quote_id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => { onDeleteQuote(q.quote_id); setConfirmDeleteId(null) }}
+                      className="px-1.5 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-1.5 py-0.5 text-xs border border-black/20 rounded hover:bg-black/4"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
                 <button
                   type="button"
-                  onClick={() => onDeleteQuote(q.quote_id)}
+                  onClick={() => setConfirmDeleteId(q.quote_id)}
                   className="text-[var(--md-text-secondary)] hover:text-red-600 p-1"
                   title="Remove quote"
                   aria-label="Remove quote"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
+                )
               )}
               <span
                 className={`px-2 py-0.5 rounded text-xs font-medium ${

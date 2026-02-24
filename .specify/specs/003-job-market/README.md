@@ -15,7 +15,10 @@ This product is **unattached** from 001 ETL Configurator and 002 Data Discovery 
 - **Job board & map**: Table and map views (map default); UK map with load pins, vehicle markers, collection/delivery lines; hover tooltips (no click popups); route lines on load-pin hover.
 - **Load switcher**: When multiple jobs share the same collection city, a “1 of N at [city]” bar with Previous/Next lets users switch between them (map and table views).
 - **Fleet profile**: Editable in Fleet Setup only; company name and rating (0–5) with save.
-- **Quote flow**: Submit quote with price/vehicle/driver; recommender range; acceptance/rejection with score breakdown and feedback; quote history with delete; at least one simulated competing quote per job.
+- **Quote flow**: Submit quote with price/vehicle/driver; recommender range (mid price prominent); acceptance/rejection with score breakdown and feedback; quote history with delete confirmation; at least one simulated competing quote per job.
+- **Auto-recommend**: "Auto-fill" button blindly recommends best vehicle, driver, and price (does not access competing quotes).
+- **Competing quotes**: 1-3 simulated quotes per job; ADR-required loads always get ADR-certified competitors.
+- **Rich formatting**: ADR badges, quote count pill badges (colour-coded), bold budget formatting, smooth hover transitions, informative empty states.
 - **Display names**: UI labels aligned with platform data model (`frontend/src/lib/jobmarket/displayNames.ts`).
 
 ## Key Concepts

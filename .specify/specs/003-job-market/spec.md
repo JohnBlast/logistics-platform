@@ -227,7 +227,7 @@ A Fleet Operator tracks their submitted quotes and understands acceptance decisi
 
 **Job Board**
 
-- No posted jobs: Empty state — "No jobs available. Check back later." (PRD §8)
+- No posted jobs: Informative empty state with icon, heading, descriptive text, and refresh CTA (PRD §8)
 - Job with no quotes: Load remains "posted" indefinitely (PRD §8)
 - All quotes rejected for a job: Load remains "posted"; Fleet Operators can re-quote (PRD §8)
 
@@ -252,7 +252,7 @@ A Fleet Operator tracks their submitted quotes and understands acceptance decisi
 
 **Quote Submission**: Submit with price + vehicle + driver; auto-populate type/ADR/ETA; display recommendation; block if no fleet; ADR hard gate (PRD §4)
 
-**Quote Recommender**: Rule-based formula; price range (min/mid/max); update on input change (PRD §4, §16.2)
+**Quote Recommender**: Rule-based formula; price range (min/mid/max) with mid price shown prominently; update on input change (PRD §4, §16.2)
 
 **Quote Acceptance**: 4-signal scoring; composite threshold 0.65 (0.50 sole bidder); reject unrealistic quotes; feedback on rejection (PRD §4, §16.3)
 

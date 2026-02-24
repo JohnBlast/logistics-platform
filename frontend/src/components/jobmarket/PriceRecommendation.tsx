@@ -18,9 +18,11 @@ export function PriceRecommendation({ recommendation, loading }: PriceRecommenda
   return (
     <div className="space-y-1">
       <h4 className="text-sm font-medium">Recommended price range</h4>
-      <p className="text-lg font-semibold text-primary">
-        £{recommendation.min.toFixed(2)} – £{recommendation.max.toFixed(2)}
-      </p>
+      <div className="flex items-baseline gap-2">
+        <span className="text-xs text-[var(--md-text-secondary)]">£{recommendation.min.toFixed(2)}</span>
+        <span className="text-lg font-semibold text-primary">£{recommendation.mid.toFixed(2)}</span>
+        <span className="text-xs text-[var(--md-text-secondary)]">£{recommendation.max.toFixed(2)}</span>
+      </div>
       {recommendation.signals && (
         <p className="text-xs text-[var(--md-text-secondary)]">
           Based on {recommendation.signals.distance_km} km, {getVehicleTypeLabel(recommendation.signals.vehicle_type ?? '')}

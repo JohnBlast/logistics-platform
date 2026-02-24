@@ -162,6 +162,8 @@ A simulated user role that generates jobs and evaluates quotes.
 - System shall provide a Table/Map view toggle in the Operations tab
 - System shall display rich formatting: ADR badge, quote count pill badges (colour-coded by count), bold budget formatting
 - System shall provide search filtering and pagination (25 per page, max 50)
+- System shall show an informative empty state with icon, heading, descriptive text, and a refresh CTA when no jobs exist
+- System shall provide smooth row hover transitions
 
 ### Quote Submission
 
@@ -172,6 +174,8 @@ A simulated user role that generates jobs and evaluates quotes.
 - System shall block quote submission if the job requires ADR and the selected driver does not have ADR certification
 - System shall validate quoted_price is a positive number (reject NaN and zero/negative values)
 - System shall warn before submission if price exceeds the poster's max budget or vehicle is outside acceptable types (ZOPA pre-submission hints)
+- System shall disable all form inputs while a quote is being submitted
+- System shall show a brief "Fields auto-filled. Review and submit." confirmation message after auto-fill completes
 
 ### Auto-Recommend
 
@@ -185,7 +189,7 @@ A simulated user role that generates jobs and evaluates quotes.
 ### Quote Recommender (Rule-Based)
 
 - System shall calculate a recommended price range based on: distance (km), required vehicle type, ADR requirement, number of competing quotes, fleet rating
-- System shall display the recommendation as a price range (min–mid–max £) with scoring signals
+- System shall display the recommendation as a price range with the mid price shown prominently (large, primary colour) between smaller min and max values, with scoring signals
 - System shall update the recommendation when the user selects a different vehicle type
 
 ### ZOPA (Zone of Possible Agreement)
@@ -212,7 +216,8 @@ These fields create hard pre-scoring gates. If a quote falls outside the ZOPA, i
 
 ### Competing Quotes & Feedback
 
-- System shall generate 1-3 simulated competing quotes for ~60% of generated jobs
+- System shall generate 1-3 simulated competing quotes for generated jobs (70% get 1 quote, 20% get 2, 10% get 3)
+- Simulated competitors on ADR-required loads are always ADR-certified (ensuring they can pass the ADR gate)
 - After submission, system shall reveal competing quotes (price, vehicle type, ETA, score breakdown)
 - System shall display a plain English feedback message explaining the result:
   - Accepted: congratulatory message with score percentage and key strengths
@@ -226,14 +231,16 @@ These fields create hard pre-scoring gates. If a quote falls outside the ZOPA, i
 - System shall randomly assign vehicle type requirements and ADR requirements (30% chance)
 - System shall generate ZOPA fields: max_budget (1.0-1.5x base price), acceptable_vehicle_types (required + 1-2 larger), collection_window_minutes (15-60)
 - System shall auto-generate 20 jobs + 10 vehicles/drivers on first load when the board is empty
+- System shall show a "{N} job(s) generated" success confirmation after job generation completes
 
 ### Fleet Management
 
 - System shall allow creating and generating vehicles with: type, registration, capacity, current city
 - System shall allow creating and generating drivers with: name, ADR certification
 - System shall allow assigning drivers to vehicles
-- System shall display the fleet profile: company name, total jobs completed, rating (editable), driver count, vehicle count
-- System shall allow deleting individual quotes from history
+- System shall display the fleet profile: company name, total jobs completed, rating (editable with "/ 5.0" context label), driver count, vehicle count
+- System shall show a "Saved" confirmation message after successfully saving fleet profile changes
+- System shall allow deleting individual quotes from history with an inline confirmation step (Delete/Cancel buttons)
 
 ### Map
 
@@ -344,7 +351,7 @@ The Job Market manages these data objects in-memory (not persisted to a database
 ## 8. Edge Cases & Constraints
 
 - **No vehicles/drivers/quote price**: Fleet Operator sees "Add vehicles and drivers to your fleet before quoting" or "You must add a quote price" message; quote form is disabled
-- **No posted jobs**: Job board shows "No jobs available. Check back later." empty state
+- **No posted jobs**: Job board shows an informative empty state with icon, heading ("No jobs available"), descriptive text, and a refresh CTA
 - **Job with no quotes**: Load remains "posted" indefinitely until quoted
 - **All quotes rejected for a job**: Load remains "posted"; Fleet Operators can re-quote with better terms
 - **City not in UK hubs lookup**: Should not occur — simulation only generates from the hubs list. If manual entry is added later, show validation error

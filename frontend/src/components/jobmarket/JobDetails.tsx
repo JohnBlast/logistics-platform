@@ -22,8 +22,11 @@ export function JobDetails({
 }: JobDetailsProps) {
   if (!job) {
     return (
-      <div className="rounded border border-black/12 bg-white p-8 text-center text-[var(--md-text-secondary)]">
-        Select a job from the board to view details and submit a quote.
+      <div className="rounded border border-black/12 bg-white p-8 text-center space-y-2">
+        <div className="text-2xl opacity-50">&#128205;</div>
+        <p className="text-sm text-[var(--md-text-secondary)]">
+          Select a job from the board to view details and submit a quote.
+        </p>
       </div>
     )
   }
@@ -79,7 +82,13 @@ export function JobDetails({
           <dt className="text-[var(--md-text-secondary)]">{getFieldLabel('required_vehicle_type')}</dt>
           <dd>{job.required_vehicle_type ? getVehicleTypeLabel(job.required_vehicle_type) : '-'}</dd>
           <dt className="text-[var(--md-text-secondary)]">{getFieldLabel('adr_required')}</dt>
-          <dd>{job.adr_required ? 'Yes' : 'No'}</dd>
+          <dd>
+            {job.adr_required ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">ADR</span>
+            ) : (
+              <span className="text-[var(--md-text-secondary)]">No</span>
+            )}
+          </dd>
           <dt className="text-[var(--md-text-secondary)]">{getFieldLabel('collection_time')}</dt>
           <dd>
             {job.collection_time

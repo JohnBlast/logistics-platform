@@ -45,8 +45,10 @@ Data flows from **ETL Configurator** (map, join, filter) → **Simulate Pipeline
 - **Job board & map** — Table and map views (map default); load pins, vehicle markers, collection/delivery lines; hover tooltips; route lines on load-pin hover
 - **Load switcher** — When multiple jobs share a collection city, “1 of N at [city]” with Previous/Next
 - **Fleet profile** — Company name and rating (0–5), editable in Fleet Setup; vehicles and drivers
-- **Quote flow** — Submit quote (price, vehicle, driver); price recommender; acceptance/rejection with score breakdown and plain-English feedback; “Your sent quote” summary on outcome; quote history with delete
-- **Competing quotes** — At least one simulated quote per job; reveal other quotes on outcome
+- **Quote flow** — Submit quote (price, vehicle, driver); price recommender (mid price prominent); acceptance/rejection with score breakdown and plain-English feedback; “Your sent quote” summary on outcome; quote history with delete confirmation
+- **Auto-recommend** — “Auto-fill” button blindly recommends best vehicle, driver, and price (does not see competing quotes)
+- **Competing quotes** — 1-3 simulated quotes per job; ADR-required loads always get ADR-certified competitors; reveal other quotes on outcome
+- **Rich formatting** — ADR badges, quote count pill badges (colour-coded), bold budget formatting, smooth row hover transitions
 - **Display names** — UI labels aligned with platform data model
 
 ---
@@ -141,7 +143,7 @@ logistics-platform/
 ├── backend/                   # Express API
 │   ├── src/
 │   │   ├── api/              # profiles, mapping, ingest, joins, filters, pipeline, chat, discovery, jobmarket
-│   │   ├── services/         # transformation, dedup, join, filter, validation, enum mapping, jobmarket (acceptance, recommender, quote, etc.)
+│   │   ├── services/         # transformation, dedup, join, filter, validation, enum mapping, jobmarket (acceptance, recommender, auto-recommend, competing quotes, etc.)
 │   │   ├── generators/       # dirtyDataGenerator
 │   │   └── models/
 │   └── ...

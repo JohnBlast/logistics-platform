@@ -107,21 +107,23 @@
 
 ### G1. Boundary Logging
 
-- [ ] Every component/stage boundary logs input count and output count
-- [ ] Key match/miss rates are logged (e.g., "vehicle city lookup: 3/3 resolved")
-- [ ] When output count drops to zero, a warning-level log is emitted
+- [x] Every component/stage boundary logs input count and output count
+- [x] Key match/miss rates are logged (e.g., "vehicle city lookup: 3/3 resolved")
+- [x] When output count drops to zero, a warning-level log is emitted
 
 ### G2. Decision Logging
 
-- [ ] Quote acceptance scoring decisions logged with full score breakdown
-- [ ] Recommender price calculation logged with all input signals and output range
-- [ ] Job generation logged with count and city assignments
+- [x] Quote acceptance scoring decisions logged with full score breakdown
+- [x] Recommender price calculation logged with all input signals and output range
+- [x] Job generation logged with count and city assignments
+- [x] Auto-recommend error cases logged with `[auto-recommend]` prefix
+- [x] Competing quote generation logged with `[competing]` prefix
 
 ### G3. Log Standards
 
-- [ ] Logs use consistent prefix: `[job-market]`, `[recommender]`, `[acceptance]`, `[fleet]`
-- [ ] Logs structured enough to diagnose issues without reading source
-- [ ] No PII in logs
+- [x] Logs use consistent prefix: `[job-market]`, `[recommender]`, `[acceptance]`, `[fleet]`, `[auto-recommend]`, `[competing]`
+- [x] Logs structured enough to diagnose issues without reading source
+- [x] No PII in logs
 
 ---
 
@@ -153,7 +155,7 @@
 | D. Multi-Component | Complete | 6 E2E scenarios + 5 edge cases |
 | E. RAG Features | N/A | |
 | F. Recommender Features | Complete | Rule-based scoring, no feedback loop |
-| G. Observability & Logging | Pending | Phase 8 in tasks.md (T045–T047) |
+| G. Observability & Logging | Complete | All boundary, decision, and auto-recommend logging implemented |
 | H. Final Verification | Complete | AGENTS.md updated, cross-document consistency verified |
 
 **Ready for `/speckit.implement`?** Yes — all spec artifacts complete. G (Observability) to be completed during Phase 8 of implementation.

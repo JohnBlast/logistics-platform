@@ -23,15 +23,27 @@ export interface AutoRecommendResult {
 
 export function autoRecommend(loadId: string): AutoRecommendResult | { error: string } {
   const load = getLoad(loadId)
-  if (!load) return { error: 'Load not found' }
+  if (!load) {
+    console.log(`[auto-recommend] Load ${loadId} not found`)
+    return { error: 'Load not found' }
+  }
 
   const allVehicles = getVehicles()
   const allDrivers = getDrivers()
-  if (allVehicles.length === 0) return { error: 'No vehicles in fleet' }
-  if (allDrivers.length === 0) return { error: 'No drivers in fleet' }
+  if (allVehicles.length === 0) {
+    console.log(`[auto-recommend] No vehicles in fleet for load ${loadId}`)
+    return { error: 'No vehicles in fleet' }
+  }
+  if (allDrivers.length === 0) {
+    console.log(`[auto-recommend] No drivers in fleet for load ${loadId}`)
+    return { error: 'No drivers in fleet' }
+  }
 
   const collectionCoord = lookupHub(load.collection_city)
-  if (!collectionCoord) return { error: 'Could not resolve collection city coordinates' }
+  if (!collectionCoord) {
+    console.log(`[auto-recommend] Could not resolve city: ${load.collection_city}`)
+    return { error: 'Could not resolve collection city coordinates' }
+  }
 
   // Step 1: Determine acceptable vehicle types
   const acceptableTypes =

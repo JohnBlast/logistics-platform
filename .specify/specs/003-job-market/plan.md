@@ -89,6 +89,8 @@ logistics-platform/
 │   │   ├── jobmarketStore.ts          # In-memory data store (loads, quotes, fleets)
 │   │   ├── recommenderService.ts      # Price recommendation formula
 │   │   ├── acceptanceService.ts       # 4-signal scoring + acceptance decision
+│   │   ├── autoRecommendService.ts    # Blind auto-recommend (vehicle, driver, price)
+│   │   ├── competingQuoteService.ts   # Simulated competing quotes
 │   │   ├── jobGeneratorService.ts     # Random job generation from UK hubs
 │   │   └── fleetGeneratorService.ts   # Random fleet generation
 │   └── lib/
@@ -255,7 +257,9 @@ Following existing pattern: Express Router in `backend/src/api/jobmarket.ts`, re
 | POST | `/api/job-market/quotes` | Submit a quote | ADR gate, price validation, immediate scoring |
 | GET | `/api/job-market/quotes/:id` | Get quote result + score | |
 | GET | `/api/job-market/quotes` | Get fleet's quote history | |
+| GET | `/api/job-market/quotes/auto-recommend` | Blind auto-recommend | `?load_id=` — vehicle, driver, price |
 | GET | `/api/job-market/quotes/recommend` | Get recommended price | `?load_id=&vehicle_type=` |
+| DELETE | `/api/job-market/quotes/:id` | Delete a quote | |
 | POST | `/api/job-market/fleet/vehicles` | Create a vehicle | |
 | POST | `/api/job-market/fleet/drivers` | Create a driver | |
 | POST | `/api/job-market/fleet/generate` | Generate vehicles + drivers | Append, max 50 each (C-13) |

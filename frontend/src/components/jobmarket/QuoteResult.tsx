@@ -107,7 +107,7 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
             <span className="text-[var(--md-text-secondary)]">{getVehicleTypeLabel(result.offered_vehicle_type)}</span>
           )}
           {result.eta_to_collection != null && (
-            <span className="text-[var(--md-text-secondary)]">{getFieldLabel('eta_to_collection')}: {result.eta_to_collection}</span>
+            <span className="text-[var(--md-text-secondary)]">~{result.eta_to_collection} min ETA</span>
           )}
         </div>
       </div>
@@ -150,7 +150,10 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
 
       {/* Competing quotes */}
       {loadingCompetitors ? (
-        <p className="text-xs text-[var(--md-text-secondary)]">Loading competing quotes...</p>
+        <div className="bg-white/60 rounded p-3 flex items-center gap-2">
+          <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <span className="text-xs text-[var(--md-text-secondary)]">Loading competing quotes...</span>
+        </div>
       ) : competitors.length > 0 ? (
         <div className="bg-white/60 rounded p-3">
           <p className="text-xs font-medium text-[var(--md-text-secondary)] mb-2">

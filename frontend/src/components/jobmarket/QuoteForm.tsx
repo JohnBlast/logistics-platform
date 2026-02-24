@@ -27,6 +27,7 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
   const [recLoading, setRecLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [autoRecLoading, setAutoRecLoading] = useState(false)
+  const [autoFilled, setAutoFilled] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === vehicleId)
@@ -125,6 +126,8 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       setVehicleId(result.vehicle_id)
       setDriverId(result.driver_id)
       setPrice(String(result.quoted_price))
+      setAutoFilled(true)
+      setTimeout(() => setAutoFilled(false), 2500)
       onDebugLog?.('AutoRecommend applied', {
         vehicle_id: result.vehicle_id,
         driver_id: result.driver_id,
@@ -175,6 +178,9 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           {autoRecLoading ? 'Recommending\u2026' : 'Auto-fill'}
         </button>
       </div>
+      {autoFilled && (
+        <p className="text-xs text-green-600 font-medium">Fields auto-filled. Review and submit.</p>
+      )}
       <PriceRecDisplay recommendation={recommendation} loading={recLoading} />
       {adrMismatch && (
         <p className="text-sm text-red-600">
@@ -207,7 +213,8 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="e.g. 450"
-            className="w-full border border-black/20 rounded px-3 py-2 text-sm"
+            disabled={submitting}
+            className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           />
         </label>
         <label>
@@ -215,7 +222,8 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           <select
             value={vehicleId}
             onChange={(e) => setVehicleId(e.target.value)}
-            className="w-full border border-black/20 rounded px-3 py-2 text-sm"
+            disabled={submitting}
+            className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           >
             <option value="">Select vehicle</option>
             {vehicles.map((v) => (
@@ -230,7 +238,8 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           <select
             value={driverId}
             onChange={(e) => setDriverId(e.target.value)}
-            className="w-full border border-black/20 rounded px-3 py-2 text-sm"
+            disabled={submitting}
+            className="w-full border border-black/20 rounded px-3 py-2 text-sm disabled:opacity-50 disabled:bg-black/4"
           >
             <option value="">Select driver</option>
             {drivers.map((d) => (

@@ -89,8 +89,8 @@ export function generateCompetingQuotes(loads: Load[]): number {
         eta = estimateETA(dist)
       }
 
-      // ADR: 50% chance of having it (if needed)
-      const adrCertified = load.adr_required ? Math.random() < 0.5 : Math.random() < 0.3
+      // ADR: always certified when load requires it, otherwise 30% chance
+      const adrCertified = load.adr_required ? true : Math.random() < 0.3
 
       addQuote({
         load_id: load.load_id,

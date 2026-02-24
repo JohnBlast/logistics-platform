@@ -13,6 +13,7 @@ export function FleetProfile({ refreshTrigger = 0 }: FleetProfileProps) {
   const [companyName, setCompanyName] = useState('')
   const [rating, setRating] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const fetchProfile = async () => {
     try {
@@ -42,6 +43,8 @@ export function FleetProfile({ refreshTrigger = 0 }: FleetProfileProps) {
           ? { ...prev, company_name: companyName.trim(), rating: updates.rating ?? prev.rating }
           : null
       )
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     } finally {
       setSaving(false)
     }
@@ -75,6 +78,7 @@ export function FleetProfile({ refreshTrigger = 0 }: FleetProfileProps) {
             onChange={(e) => setRating(e.target.value)}
             className="w-20 border border-black/20 rounded px-2 py-1.5 text-sm"
           />
+          <span className="text-xs text-[var(--md-text-secondary)]">/ 5.0</span>
         </div>
         <div className="flex items-center gap-2">
         <input
@@ -96,6 +100,7 @@ export function FleetProfile({ refreshTrigger = 0 }: FleetProfileProps) {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
+        {saved && <span className="text-xs text-green-600 font-medium">Saved</span>}
       </div>
       </div>
     </div>
