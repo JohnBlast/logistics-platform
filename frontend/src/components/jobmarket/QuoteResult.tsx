@@ -95,6 +95,16 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
         </button>
       </div>
 
+      {/* Your quote summary: vehicle type + ETA to collection */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-[var(--md-text-secondary)]">
+        {result.offered_vehicle_type && (
+          <span>{getVehicleTypeLabel(result.offered_vehicle_type)}</span>
+        )}
+        {result.eta_to_collection != null && (
+          <span>{getFieldLabel('eta_to_collection')}: {result.eta_to_collection}</span>
+        )}
+      </div>
+
       {/* Plain English feedback */}
       {result.feedback && (
         <p className={`text-sm leading-relaxed ${accepted ? 'text-green-800' : 'text-red-800'}`}>
@@ -142,11 +152,11 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
               <span className="ml-1">(poster budget: £{maxBudget.toFixed(2)})</span>
             )}
           </p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {competitors.map((c) => (
               <div
                 key={c.quote_id}
-                className={`flex items-center justify-between text-xs py-1.5 px-2 rounded ${
+                className={`rounded p-2.5 text-xs ${
                   c.status === 'accepted'
                     ? 'bg-green-100/80'
                     : c.status === 'rejected'
@@ -154,24 +164,10 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
                     : 'bg-gray-50'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{c.fleet_quoter_name}</span>
-                  <span className="text-[var(--md-text-secondary)]">
-                    {c.offered_vehicle_type ? getVehicleTypeLabel(c.offered_vehicle_type) : ''}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono font-medium">£{c.quoted_price.toFixed(2)}</span>
-                  <span className="text-[var(--md-text-secondary)]">
-                    {c.eta_to_collection} min ETA
-                  </span>
-                  {c.score_breakdown && (
-                    <span className="font-mono text-[var(--md-text-secondary)]">
-                      {Math.round(c.score_breakdown.composite_score * 100)}%
-                    </span>
-                  )}
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-medium truncate">{c.fleet_quoter_name}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                    className={`px-1.5 py-0.5 rounded shrink-0 text-[10px] font-medium ${
                       c.status === 'accepted'
                         ? 'bg-green-200 text-green-800'
                         : c.status === 'rejected'
@@ -181,6 +177,18 @@ export function QuoteResult({ result, onDismiss }: QuoteResultProps) {
                   >
                     {c.status}
                   </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[var(--md-text-secondary)]">
+                  {c.offered_vehicle_type && (
+                    <span>{getVehicleTypeLabel(c.offered_vehicle_type)}</span>
+                  )}
+                  <span className="font-mono font-medium text-[var(--md-text-primary)]">
+                    £{c.quoted_price.toFixed(2)}
+                  </span>
+                  <span>{c.eta_to_collection} min ETA</span>
+                  {c.score_breakdown && (
+                    <span className="font-mono">{Math.round(c.score_breakdown.composite_score * 100)}%</span>
+                  )}
                 </div>
               </div>
             ))}

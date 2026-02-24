@@ -11,10 +11,16 @@ interface QuoteFormProps {
   job: JobBoardLoad | null
   vehicles: Vehicle[]
   drivers: Driver[]
+  /** Quote result from last submit (controlled by parent so it survives refetches) */
+  quoteResult?: QuoteSubmitResult | null
+  onDismissQuoteResult?: () => void
+  onQuoteResult?: (result: QuoteSubmitResult) => void
   onSubmitted?: () => void
+  /** When URL has ?debug=1, parent passes this to record events on the page */
+  onDebugLog?: (msg: string, data?: Record<string, unknown>) => void
 }
 
-export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProps) {
+export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteResult, onQuoteResult, onSubmitted, onDebugLog }: QuoteFormProps) {
   const [price, setPrice] = useState('')
   const [vehicleId, setVehicleId] = useState('')
   const [driverId, setDriverId] = useState('')
@@ -22,7 +28,6 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
   const [recLoading, setRecLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [quoteResult, setQuoteResult] = useState<QuoteSubmitResult | null>(null)
 
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === vehicleId)
   const selectedDriver = drivers.find((d) => d.driver_id === driverId)
@@ -50,11 +55,6 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
     vehicleId &&
     driverId &&
     !adrMismatch
-
-  // Clear result when job changes
-  useEffect(() => {
-    setQuoteResult(null)
-  }, [job?.load_id])
 
   useEffect(() => {
     if (!job) {
@@ -102,8 +102,7 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
         setError(data.message || data.error || res.statusText)
         return
       }
-      // Show the result panel
-      setQuoteResult({
+      const result: QuoteSubmitResult = {
         quote_id: data.quote_id,
         load_id: data.load_id ?? job.load_id,
         status: data.status,
@@ -112,11 +111,14 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
         feedback: data.feedback,
         score_breakdown: data.score_breakdown,
         competing_quotes: data.competing_quotes ?? 0,
-      })
+      }
+      onDebugLog?.('QuoteForm: submit success, calling onQuoteResult then onSubmitted', { load_id: result.load_id, status: result.status })
+      onQuoteResult?.(result)
       setPrice('')
       setVehicleId('')
       setDriverId('')
       onSubmitted?.()
+      onDebugLog?.('QuoteForm: onSubmitted() called')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submission failed')
     } finally {
@@ -124,7 +126,10 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
     }
   }
 
-  if (!job) return null
+  if (!job) {
+    onDebugLog?.('QuoteForm: render, no job, return null')
+    return null
+  }
 
   if (vehicles.length === 0 || drivers.length === 0) {
     return (
@@ -134,12 +139,13 @@ export function QuoteForm({ job, vehicles, drivers, onSubmitted }: QuoteFormProp
     )
   }
 
-  // Show result panel after submission
-  if (quoteResult) {
+  // Show result panel when parent has a result for this job
+  if (quoteResult && onDismissQuoteResult) {
+    onDebugLog?.('QuoteForm: render, showing QuoteResult', { load_id: quoteResult.load_id, status: quoteResult.status })
     return (
       <QuoteResult
         result={quoteResult}
-        onDismiss={() => setQuoteResult(null)}
+        onDismiss={onDismissQuoteResult}
       />
     )
   }
