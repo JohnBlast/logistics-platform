@@ -14,7 +14,7 @@ The Logistics Platform is a portfolio of marketplace applications for fleet and 
 - **Query data in natural language** — Ask questions like "What are my top 5 profitable routes?" or "How many jobs are running between London and Birmingham?" and get structured results
 - **Discover insights** — Explore processed pipeline data via a chat interface powered by Claude
 
-Data flows from **ETL Configurator** (map, join, filter) → **Simulate Pipeline** (run & persist) → **Discovery** (query with natural language).
+Data flows from **ETL Configurator** (map, join, filter) → **Simulate Pipeline** (run & persist) → **Discovery** (query with natural language). **Job Market** is a standalone simulation (loads, quotes, fleets) with its own API—separate from ETL/Discovery.
 
 ---
 
@@ -39,9 +39,15 @@ Data flows from **ETL Configurator** (map, join, filter) → **Simulate Pipeline
 - **Flexible filters** — Supports OR logic, location aliases, fuzzy enum matching, European number formats
 - **Conversation history** — Multi-turn refinement of queries
 
-### 003 – Job Market *(Planned)*
+### 003 – Job Market *(Built & Deployed)*
 
-Marketplace for loads, quotes, and fleets — placeholder for future development.
+- **Two-sided simulation** — Load Posters generate jobs; Fleet Operators manage fleet, view job board and UK map, submit quotes
+- **Job board & map** — Table and map views (map default); load pins, vehicle markers, collection/delivery lines; hover tooltips; route lines on load-pin hover
+- **Load switcher** — When multiple jobs share a collection city, “1 of N at [city]” with Previous/Next
+- **Fleet profile** — Company name and rating (0–5), editable in Fleet Setup; vehicles and drivers
+- **Quote flow** — Submit quote (price, vehicle, driver); price recommender; acceptance/rejection with score breakdown and plain-English feedback; “Your sent quote” summary on outcome; quote history with delete
+- **Competing quotes** — At least one simulated quote per job; reveal other quotes on outcome
+- **Display names** — UI labels aligned with platform data model
 
 ---
 
@@ -97,6 +103,7 @@ Then open **http://localhost:5173**.
 | `/etl/profiles/:id` | ETL flow (ingestion → mapping → joins → filtering → validation) |
 | `/etl/simulate` | Simulate pipeline & view data |
 | `/discovery` | Natural language data discovery (requires pipeline data) |
+| `/jobmarket` | Job Market — fleet operator & load poster simulation (board, map, quotes) |
 
 ### Run Separately
 
@@ -123,17 +130,18 @@ Runs frontend (Vitest) and backend tests. Includes Discovery acceptance tests fo
 logistics-platform/
 ├── frontend/                 # React SPA
 │   ├── src/
-│   │   ├── components/       # etl/ (steps), discovery/, shared UI
-│   │   ├── pages/            # ProfilesList, ETLFlow, Discovery, ShowOverallData, DataModelPreview
+│   │   ├── components/       # etl/ (steps), discovery/, jobmarket/, shared UI
+│   │   ├── pages/            # ProfilesList, ETLFlow, Discovery, ShowOverallData, DataModelPreview, JobMarket
 │   │   ├── layouts/
 │   │   ├── context/          # PipelineOutputContext (Discovery data source)
 │   │   ├── lib/discovery/    # queryEngine, deriveViews
+│   │   ├── lib/jobmarket/    # displayNames, types
 │   │   └── services/
 │   └── ...
 ├── backend/                   # Express API
 │   ├── src/
-│   │   ├── api/              # profiles, mapping, ingest, joins, filters, pipeline, chat, discovery
-│   │   ├── services/         # transformation, dedup, join, filter, validation, enum mapping
+│   │   ├── api/              # profiles, mapping, ingest, joins, filters, pipeline, chat, discovery, jobmarket
+│   │   ├── services/         # transformation, dedup, join, filter, validation, enum mapping, jobmarket (acceptance, recommender, quote, etc.)
 │   │   ├── generators/       # dirtyDataGenerator
 │   │   └── models/
 │   └── ...
@@ -208,6 +216,7 @@ Enable Auto-Deploy so pushes to `main` trigger builds.
 **Product specs:**
 - [001 ETL Configurator](.specify/specs/001-etl-configurator/001-ETL-PRD.md)
 - [002 Logistics Discovery](.specify/specs/002-data-discovery/002-PRD-discovery.md)
+- [003 Job Market](.specify/specs/003-job-market/003-PRD-job-market.md)
 
 ---
 
