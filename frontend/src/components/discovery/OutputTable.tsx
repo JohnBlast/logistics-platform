@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import type { TableInstruction, TableFilter } from '../../lib/discovery/types'
 import type { QueryResult } from '../../lib/discovery/queryEngine'
 import { formatRow, applyFilters } from '../../lib/discovery/queryEngine'
@@ -25,7 +25,6 @@ export function OutputTable({ queryResult, tableInstruction, clientFilters, onFi
     format: formatByCol[id],
   }))
   const [popover, setPopover] = useState<{ field: string; header: string; anchor: HTMLElement } | null>(null)
-  const filterIconRefs = useRef<Record<string, HTMLElement>>({})
 
   const filteredRows = clientFilters.length ? applyFilters(rows as Record<string, unknown>[], clientFilters) : rows
   const displayRows = filteredRows as Record<string, unknown>[]

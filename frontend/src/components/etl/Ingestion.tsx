@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { api } from '../../services/api'
 import { DataTableWithSearch } from '../DataTableWithSearch'
 import { DataModelPopover } from '../DataModelPopover'
@@ -26,7 +26,7 @@ const OBJECT_LABELS: Record<string, string> = {
 
 const OBJECT_ORDER: ('quote' | 'load' | 'driver_vehicle')[] = ['load', 'quote', 'driver_vehicle']
 
-export function Ingestion({ sessionData, onUpdate, onNext, canProceed, aiMode, viewOnly }: IngestionProps) {
+export function Ingestion({ sessionData, onUpdate, onNext, canProceed, viewOnly }: IngestionProps) {
   const [generating, setGenerating] = useState<'all' | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

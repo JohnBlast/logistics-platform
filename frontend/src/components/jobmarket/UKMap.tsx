@@ -58,15 +58,20 @@ const deliveryIcon = L.divIcon({
   iconAnchor: [10, 10],
 })
 
-function makeLoadIcon(selected: boolean) {
-  const size = selected ? 24 : 18
-  const bg = selected ? '#ff6f00' : '#ef6c00'
+function makeLoadIcon(selected: boolean, jobCount: number = 1) {
+  const size = selected ? 26 : 18
+  // Selected pin turns green (collection color) to show it doubles as the pickup point
+  const bg = selected ? '#2e7d32' : '#ef6c00'
   const border = selected ? '3px solid #fff176' : '2px solid white'
+  const label = selected ? 'C' : (jobCount > 1 ? String(jobCount) : 'L')
+  const badge = !selected && jobCount > 1
+    ? `<div style="position:absolute;top:-6px;right:-8px;background:#d32f2f;color:white;font-size:9px;font-weight:bold;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:1.5px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);padding:0 3px;line-height:1">${jobCount}</div>`
+    : ''
   return L.divIcon({
     className: 'custom-marker',
-    html: `<div style="background:${bg};width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;border:${border};box-shadow:0 2px 6px rgba(0,0,0,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);color:white;font-size:${selected ? 11 : 9}px;font-weight:bold">L</span></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
+    html: `<div style="position:relative;display:inline-block">${badge}<div style="background:${bg};width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;border:${border};box-shadow:0 2px 6px rgba(0,0,0,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);color:white;font-size:${selected ? 12 : 9}px;font-weight:bold">${label}</span></div></div>`,
+    iconSize: [size + 8, size + 8],
+    iconAnchor: [(size + 8) / 2, size + 4],
   })
 }
 
@@ -202,7 +207,7 @@ export function UKMap({ job, jobs, vehicles, hubs, className, onSelectJob, selec
               <Marker
                 key={`load-${pin.city}`}
                 position={[pin.coord.lat, pin.coord.lng]}
-                icon={makeLoadIcon(hasSelected)}
+                icon={makeLoadIcon(hasSelected, pin.jobs.length)}
                 eventHandlers={{
                   mouseover: () => setHoveredLoadPinCity(pin.city),
                   mouseout: () => setHoveredLoadPinCity(null),
@@ -259,8 +264,9 @@ export function UKMap({ job, jobs, vehicles, hubs, className, onSelectJob, selec
             )
           })}
 
-          {/* Selected job collection/delivery markers */}
-          {collectionCoord && (
+          {/* Selected job collection marker — only show when load pins aren't visible
+              (table view small map). In map view, the selected load pin turns green/C. */}
+          {collectionCoord && loadPins.length === 0 && (
             <Marker position={[collectionCoord.lat, collectionCoord.lng]} icon={collectionIcon}>
               <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
                 Collection: {activeJob?.collection_city}

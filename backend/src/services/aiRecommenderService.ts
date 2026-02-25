@@ -131,7 +131,8 @@ Analyze the fleet's quoting history to identify pricing patterns — what prices
 Then recommend a price for the new job that balances acceptance probability with profitability.
 
 RESPOND WITH ONLY a JSON object:
-{ "min": number, "mid": number, "max": number, "explanation": "1-2 sentences" }
+{ "min": 265.38, "mid": 312.50, "max": 375.00, "explanation": "1-2 sentences" }
+- min, mid, max MUST be plain numbers with NO currency symbols (no £ or $ signs). Correct: "min": 265.38 — Wrong: "min": £265.38
 - mid: your best recommended price (optimizes for acceptance)
 - min: aggressive/competitive lower bound
 - max: comfortable upper bound that should still be accepted
@@ -166,29 +167,50 @@ ${history
   try {
     console.log(`[ai-recommend] Requesting AI recommendation for load ${loadId} with ${history.length} historical quotes`)
 
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      messages: [{ role: 'user', content: userPrompt }],
-      system: systemPrompt,
-    })
+    let msg: Anthropic.Message
+    try {
+      msg = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        messages: [{ role: 'user', content: userPrompt }],
+        system: systemPrompt,
+      })
+    } catch (firstErr: unknown) {
+      // Retry once on rate-limit (429) or overloaded (529) after a short delay
+      const status = firstErr instanceof Error && 'status' in firstErr ? (firstErr as any).status : undefined
+      if (status === 429 || status === 529) {
+        console.log(`[ai-recommend] Retrying after ${status} (1.5s backoff)`)
+        await new Promise((r) => setTimeout(r, 1500))
+        msg = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 512,
+          messages: [{ role: 'user', content: userPrompt }],
+          system: systemPrompt,
+        })
+      } else {
+        throw firstErr
+      }
+    }
 
     const text = msg.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
 
-    const jsonStr = extractJsonObject(text)
-    if (!jsonStr) {
+    const rawJson = extractJsonObject(text)
+    if (!rawJson) {
       console.log(`[ai-recommend] Failed to parse JSON from Claude response, falling back to algorithmic`)
-      return buildFallback(algoRec, vt, load, competingQuotes, evaluatedQuotes.length)
+      return { error: 'AI response could not be parsed. Falling back to algorithmic recommendation.' }
     }
+
+    // Strip currency symbols that Claude sometimes puts in numeric values (e.g. "min": £265.38)
+    const jsonStr = rawJson.replace(/:\s*[£$€]\s*(\d)/g, ': $1')
 
     const parsed = JSON.parse(jsonStr) as { min?: number; mid?: number; max?: number; explanation?: string }
 
     if (typeof parsed.mid !== 'number' || parsed.mid <= 0) {
       console.log(`[ai-recommend] Invalid mid price from Claude, falling back to algorithmic`)
-      return buildFallback(algoRec, vt, load, competingQuotes, evaluatedQuotes.length)
+      return { error: 'AI returned an invalid price. Falling back to algorithmic recommendation.' }
     }
 
     const mid = Math.round((parsed.mid ?? 0) * 100) / 100
@@ -215,32 +237,19 @@ ${history
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    const errDetails = err instanceof Error && 'status' in err ? ` (status: ${(err as any).status})` : ''
+    const status = err instanceof Error && 'status' in err ? (err as any).status : undefined
+    const errDetails = status ? ` (status: ${status})` : ''
     console.log(`[ai-recommend] Claude API error${errDetails}, falling back to algorithmic: ${errMsg}`)
-    return buildFallback(algoRec, vt, load, competingQuotes, evaluatedQuotes.length)
+    const reason = status === 429
+      ? 'Rate limited by Claude API'
+      : status === 401
+      ? 'Invalid API key'
+      : status === 529
+      ? 'Claude API overloaded'
+      : errMsg.length > 120
+      ? errMsg.slice(0, 120) + '…'
+      : errMsg
+    return { error: `Claude API error: ${reason}` }
   }
 }
 
-function buildFallback(
-  algoRec: ReturnType<typeof recommendPrice>,
-  vt: string,
-  load: { distance_km: number; adr_required: boolean },
-  competingQuotes: number,
-  historyCount: number
-): AiRecommendationResult {
-  return {
-    min: algoRec?.min ?? load.distance_km * 1.7,
-    mid: algoRec?.mid ?? load.distance_km * 2.0,
-    max: algoRec?.max ?? load.distance_km * 2.3,
-    explanation: 'AI analysis unavailable — showing algorithmic recommendation as fallback',
-    historical_quotes_used: historyCount,
-    source: 'algorithmic_fallback',
-    signals: {
-      distance_km: load.distance_km,
-      vehicle_type: vt,
-      adr_required: load.adr_required,
-      competing_quotes: competingQuotes,
-      fleet_rating: algoRec?.signals.fleet_rating ?? 3.0,
-    },
-  }
-}

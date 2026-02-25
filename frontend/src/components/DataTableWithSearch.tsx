@@ -27,7 +27,7 @@ interface DataTableWithSearchProps {
 
 export function DataTableWithSearch({
   data,
-  maxRows = 50,
+  maxRows: _maxRows = 50,
   pageSize = 25,
   searchPlaceholder = 'Search...',
   warningFields,

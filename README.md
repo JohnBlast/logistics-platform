@@ -47,9 +47,12 @@ Data flows from **ETL Configurator** (map, join, filter) → **Simulate Pipeline
 - **Fleet profile** — Company name and rating (0–5), editable in Fleet Setup; vehicles and drivers
 - **Quote flow** — Submit quote (price, vehicle, driver); price recommender (mid price prominent); acceptance/rejection with score breakdown and plain-English feedback; “Your sent quote” summary on outcome; quote history with delete confirmation
 - **Auto-recommend** — “Auto-fill” button blindly recommends best vehicle, driver, and price (does not see competing quotes)
+- **AI price recommender** — Claude Haiku analyses fleet quoting history to recommend optimal prices; falls back to algorithmic formula when unavailable; retry with backoff on rate limits
 - **Competing quotes** — 1-3 simulated quotes per job; ADR-required loads always get ADR-certified competitors; reveal other quotes on outcome
 - **Rich formatting** — ADR badges, quote count pill badges (colour-coded), bold budget formatting, smooth row hover transitions
+- **Map UX** — Merged load/collection pins (selected pin turns green “C”); multi-job pins show count badge; hover to preview routes
 - **Display names** — UI labels aligned with platform data model
+- **Debug log** — `/debug-log` captures console errors, API failures, and warnings with copy-paste for issue reporting
 
 ---
 
@@ -106,6 +109,7 @@ Then open **http://localhost:5173**.
 | `/etl/simulate` | Simulate pipeline & view data |
 | `/discovery` | Natural language data discovery (requires pipeline data) |
 | `/jobmarket` | Job Market — fleet operator & load poster simulation (board, map, quotes) |
+| `/debug-log` | Debug log — captured errors, API failures, warnings (URL-only, not in nav) |
 
 ### Run Separately
 

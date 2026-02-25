@@ -5,6 +5,7 @@ import { getFieldLabel, getVehicleTypeLabel } from '../../lib/jobmarket/displayN
 import { PriceRecommendation as PriceRecDisplay } from './PriceRecommendation'
 import { QuoteResult, type QuoteSubmitResult } from './QuoteResult'
 import { api } from '../../services/api'
+import { addLogEntry } from '../../services/debugLogStore'
 
 interface QuoteFormProps {
   job: JobBoardLoad | null
@@ -98,9 +99,16 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       .finally(() => setRecLoading(false))
   }, [job?.load_id, selectedVehicle?.vehicle_type, job?.required_vehicle_type])
 
-  // Reset any AI auto-lock when switching to a different job
+  // Reset form fields when switching to a different job
   useEffect(() => {
+    setPrice('')
+    setVehicleId('')
+    setDriverId('')
+    setError(null)
     setAiAutoReasoning(null)
+    setAutoFilled(false)
+    setQuoteSource('manual')
+    setAiExplanation(null)
   }, [job?.load_id])
 
   const handleSubmit = async () => {
@@ -143,7 +151,9 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
           // ignore AI status refresh errors
         })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Submission failed')
+      const msg = e instanceof Error ? e.message : 'Submission failed'
+      setError(msg)
+      addLogEntry('error', 'quote-submit', msg, { load_id: job.load_id })
     } finally {
       setSubmitting(false)
     }
@@ -167,6 +177,11 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
       // Surface AI-specific errors (e.g. not enough quote history) even when we fall back to algorithmic.
       if (useAi && result.ai_error) {
         setError(result.ai_error)
+        addLogEntry('error', 'ai-recommend', result.ai_error, {
+          load_id: job.load_id,
+          quote_source: result.quote_source,
+          ai_error: result.ai_error,
+        })
       }
       setAutoFilled(true)
       setTimeout(() => setAutoFilled(false), 2500)
@@ -175,10 +190,12 @@ export function QuoteForm({ job, vehicles, drivers, quoteResult, onDismissQuoteR
         driver_id: result.driver_id,
         quoted_price: result.quoted_price,
         quote_source: result.quote_source,
-        reasoning: result.reasoning as unknown as Record<string, unknown>,
+        reasoning: result.reasoning ? Object.fromEntries(Object.entries(result.reasoning)) : undefined,
       })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Auto-recommend failed')
+      const msg = e instanceof Error ? e.message : 'Auto-recommend failed'
+      setError(msg)
+      addLogEntry('error', 'auto-recommend', msg, { load_id: job.load_id, useAi })
     } finally {
       setAutoRecLoading(false)
     }

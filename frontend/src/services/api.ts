@@ -19,7 +19,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export interface FilterInterpretedRule {
-  structured: { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion' }
+  structured: { field?: string; op: string; value?: unknown; type?: 'inclusion' | 'exclusion'; orGroup?: number }
   label?: string
 }
 

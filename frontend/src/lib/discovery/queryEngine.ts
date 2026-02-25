@@ -109,7 +109,7 @@ function matchesValue(v: unknown, x: unknown): boolean {
 }
 
 function applyFilter(rows: Record<string, unknown>[], filter: TableFilter): Record<string, unknown>[] {
-  const { field, operator, value, topBottomN } = filter
+  const { field, operator, value } = filter
   return rows.filter((row) => {
     const v = getRowValue(row, field)
     switch (operator) {
@@ -379,7 +379,7 @@ export function execute(
         const nb = parseNum(vb)
         const cmp = (!Number.isNaN(na) && !Number.isNaN(nb))
           ? (na < nb ? -1 : na > nb ? 1 : 0)
-          : (va < vb ? -1 : va > vb ? 1 : 0)
+          : (String(va ?? '') < String(vb ?? '') ? -1 : String(va ?? '') > String(vb ?? '') ? 1 : 0)
         if (cmp !== 0) return s.dir === 'asc' ? cmp : -cmp
       }
       return 0

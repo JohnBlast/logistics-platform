@@ -7,6 +7,7 @@ import { DataModelPreview } from './pages/DataModelPreview'
 import { ShowOverallData } from './pages/ShowOverallData'
 import { Discovery } from './pages/Discovery'
 import { JobMarket } from './pages/JobMarket'
+import { DebugLog } from './pages/DebugLog'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/etl/simulate" element={<ShowOverallData />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/jobmarket" element={<JobMarket />} />
+          <Route path="/debug-log" element={<DebugLog />} />
         </Routes>
       </MainLayout>
     </PipelineOutputProvider>

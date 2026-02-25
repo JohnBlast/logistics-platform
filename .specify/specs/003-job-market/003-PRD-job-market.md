@@ -176,6 +176,7 @@ A simulated user role that generates jobs and evaluates quotes.
 - System shall warn before submission if price exceeds the poster's max budget or vehicle is outside acceptable types (ZOPA pre-submission hints)
 - System shall disable all form inputs while a quote is being submitted
 - System shall show a brief "Fields auto-filled. Review and submit." confirmation message after auto-fill completes
+- System shall reset all quote form fields (price, vehicle, driver, errors, AI reasoning) when the user switches to a different job
 
 ### Auto-Recommend
 
@@ -191,6 +192,23 @@ A simulated user role that generates jobs and evaluates quotes.
 - System shall calculate a recommended price range based on: distance (km), required vehicle type, ADR requirement, number of competing quotes, fleet rating
 - System shall display the recommendation as a price range with the mid price shown prominently (large, primary colour) between smaller min and max values, with scoring signals
 - System shall update the recommendation when the user selects a different vehicle type
+
+### AI Price Recommender
+
+- System shall offer an AI-powered price recommendation using Claude Haiku when `ANTHROPIC_API_KEY` is set and the fleet has 5+ evaluated quotes
+- AI analyses the fleet's quoting history (accepted/rejected outcomes, composite scores, price scores) to identify pricing patterns
+- Falls back to algorithmic recommendation when Claude is unavailable, rate-limited, or history is insufficient
+- Retries once with 1.5s backoff on rate limits (429) and overloaded (529) responses
+- Strips currency symbols from Claude's JSON output as a safety net (Claude sometimes embeds £ in numeric values)
+- Returns descriptive error messages including the specific failure reason (rate limited, invalid API key, overloaded, parse error)
+
+### Debug Log
+
+- System shall capture console errors, console warnings, API failures (non-2xx), and soft API errors (200 responses with `error`/`ai_error` fields) in a global in-memory log
+- Debug log is accessible at `/debug-log` (not linked in navigation — URL-only access)
+- System shall display log entries with level badges (ERROR, WARN, INFO, API), timestamps, source labels, and expandable detail panels
+- System shall provide "Copy All" (formatted plain text with user agent and URL) and "Clear" buttons
+- System shall install global interceptors at app boot: `console.error`, `console.warn`, `window.onerror`, `unhandledrejection`, and `fetch` (for `/api/` calls)
 
 ### ZOPA (Zone of Possible Agreement)
 
@@ -246,7 +264,7 @@ These fields create hard pre-scoring gates. If a quote falls outside the ZOPA, i
 
 - System shall render a Leaflet + OpenStreetMap map bounded to the UK
 - System shall display pins for vehicle positions (blue circles), collection points (green squares), and delivery points (red squares)
-- System shall display orange load pins at collection cities, grouped by city, clickable to select jobs
+- System shall display orange load pins at collection cities, grouped by city, clickable to select jobs; selected pin turns green with "C" label (merged load/collection marker); multi-job pins show a red count badge
 - System shall draw straight-line polylines between: vehicle → collection (dashed blue), collection → delivery (solid green)
 - System shall highlight the nearest vehicle to the selected job's collection city
 - System shall show tooltips on hover with job/vehicle details

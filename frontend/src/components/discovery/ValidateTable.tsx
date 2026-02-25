@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import type { TableFilter } from '../../lib/discovery/types'
 import type { QueryResult } from '../../lib/discovery/queryEngine'
 import { applyFilters } from '../../lib/discovery/queryEngine'

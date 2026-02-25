@@ -8,7 +8,7 @@ import { AiWorkingIndicator } from '../AiWorkingIndicator'
 export interface FilterRule {
   type: 'inclusion' | 'exclusion'
   rule: string
-  structured?: { field?: string; op: string; value?: unknown }
+  structured?: { field?: string; op: string; value?: unknown; orGroup?: number }
 }
 
 interface FilteringProps {

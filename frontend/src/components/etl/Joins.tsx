@@ -35,7 +35,7 @@ export function Joins({ sessionData, profile, onUpdate, onNext, onSkip, onSavePr
     joinSteps?: { name: string; leftKey: string; rightKey: string; fallbackKey?: string; rowsBefore: number; rowsAfter: number }[]
   } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [nlInput, setNlInput] = useState('')
   const [nlResult, setNlResult] = useState<string | null>(null)
   const [interpreting, setInterpreting] = useState(false)

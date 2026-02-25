@@ -22,7 +22,7 @@ function isNumericColumn(values: (string | number)[], sampleNum: number | null):
 export function FilterPopover({
   anchorEl,
   field,
-  header,
+  header: _header,
   values,
   sampleNum,
   onClose,
