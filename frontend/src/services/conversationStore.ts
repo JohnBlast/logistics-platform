@@ -1,4 +1,4 @@
-import type { TableInstruction } from '../lib/discovery/types'
+import type { TableInstruction, ChartInstruction } from '../lib/discovery/types'
 
 const STORAGE_KEY = 'discovery_conversations'
 export const MAX_CONVERSATIONS = 10
@@ -15,6 +15,7 @@ export interface StoredConversation {
   title: string
   messages: StoredMessage[]
   tableInstruction?: TableInstruction
+  chartInstruction?: ChartInstruction
   createdAt: string
   bookmarked: boolean
 }
@@ -60,7 +61,7 @@ export function createConversation(title?: string): StoredConversation {
 
 export function updateConversation(
   id: string,
-  patch: Partial<Pick<StoredConversation, 'title' | 'messages' | 'tableInstruction' | 'bookmarked'>>
+  patch: Partial<Pick<StoredConversation, 'title' | 'messages' | 'tableInstruction' | 'chartInstruction' | 'bookmarked'>>
 ): StoredConversation | null {
   const items = loadAll()
   const idx = items.findIndex((c) => c.id === id)

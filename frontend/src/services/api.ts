@@ -131,9 +131,10 @@ export const api = {
     opts?: {
       conversationHistory?: { role: string; content: string }[]
       previousTableInstruction?: Record<string, unknown>
+      previousChartInstruction?: Record<string, unknown>
       dataColumns?: string[]
     }
-  ): Promise<{ summary: string; title: string; tableInstruction?: Record<string, unknown> }> => {
+  ): Promise<{ summary: string; title: string; tableInstruction?: Record<string, unknown>; chartInstruction?: Record<string, unknown> }> => {
     const res = await fetch(`${API_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -141,6 +142,7 @@ export const api = {
         prompt,
         conversationHistory: opts?.conversationHistory ?? [],
         previousTableInstruction: opts?.previousTableInstruction,
+        previousChartInstruction: opts?.previousChartInstruction,
         dataColumns: opts?.dataColumns ?? [],
       }),
     })

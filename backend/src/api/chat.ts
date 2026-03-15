@@ -28,6 +28,22 @@ ROUTES: No "route" field. Use groupBy ["collection_town", "delivery_town"] or ["
 VEHICLE TYPES: Use exact enum values: small_van, medium_van, large_van, luton, rigid_7_5t, rigid_18t, rigid_26t, articulated. For "small van" use value "small_van".
 `
 
+const CHART_INSTRUCTION_SCHEMA = `
+ChartInstruction JSON schema (optional; include when visualization is appropriate):
+{
+  "chartType": "bar" | "line" | "area" | "pie" | "scatter" | "radar" | "composed",
+  "title": "string (chart title)",
+  "xAxis": { "dataKey": "string (field for x-axis, must match groupBy field)", "label": "string" },
+  "yAxis": { "label": "string", "unit": "string" },
+  "series": [{ "dataKey": "string (must match an aggregation alias from tableInstruction)", "name": "display name", "color": "#hex", "type": "bar|line|area (for composed only)", "stackId": "string" }],
+  "showLegend": true,
+  "showTooltip": true,
+  "showGrid": true,
+  "stacked": false,
+  "displayMode": "chart_only" | "chart_and_table"
+}
+`
+
 function extractJsonObject(text: string): string | null {
   const start = text.indexOf('{')
   if (start < 0) return null
@@ -55,7 +71,7 @@ const chatLimiter = rateLimit({
 chatRouter.use(chatLimiter)
 
 chatRouter.post('/', async (req: Request, res: Response) => {
-  const { prompt, conversationHistory = [], previousTableInstruction, dataColumns } = req.body
+  const { prompt, conversationHistory = [], previousTableInstruction, previousChartInstruction, dataColumns } = req.body
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt is required and must be a string' })
   }
@@ -93,9 +109,10 @@ Field mapping guide (use the column name that exists in the list above):
 
 Your task: Interpret the user's question and produce EITHER:
 1. A text-only answer (when no table is needed, or when refusing)
-2. A summary PLUS a TableInstruction JSON for the client to execute
+2. A summary PLUS a TableInstruction JSON for the client to execute (and optionally a ChartInstruction when the user wants a chart/graph)
 
 ${TABLE_INSTRUCTION_SCHEMA}
+${CHART_INSTRUCTION_SCHEMA}
 ${dataSchema}
 
 IMPORTANT NOTES:
@@ -118,17 +135,28 @@ Rules:
 - For "cancelled routes" / "completed routes": filter on load_status (NOT status or quote_status). Example: filters:[{"field":"load_status","operator":"eq","value":"cancelled"}].
 - For "most frequent X" / "top X": Use groupBy + count aggregation + sort desc + limit 10 (default to 10 unless user specifies). Do NOT set limit:1 just because "most" is singular.
 - When the user asks for multiple metrics (e.g. "revenue AND top poster"), include multiple aggregations: e.g. [{"op":"count","alias":"job_count"},{"op":"sum","field":"quoted_price","alias":"total_revenue"},{"op":"mode","field":"load_poster_name","alias":"top_poster"}].
-- For follow-ups, modify previousTableInstruction.
+- For follow-ups, modify previousTableInstruction (and previousChartInstruction when the user modifies the chart).
 - If the question is ambiguous or outside scope, respond with text only.
 
-When producing a table, respond with:
+Chart rules:
+- When the user asks for a chart/graph/plot/visualization, include chartInstruction in the response. series[].dataKey MUST match an aggregation alias from tableInstruction. xAxis.dataKey MUST match a groupBy field from tableInstruction.
+- For trend queries (groupBy on date field): default to chartType "line".
+- For comparison queries (groupBy on categorical field, limit > 1): default to chartType "bar".
+- For distribution/proportion (single metric, few groups): default to chartType "pie".
+- Default: showLegend true, showTooltip true, showGrid true.
+- "make it a line chart" / "show as bar chart" etc.: update previousChartInstruction (chartType, stacked, showLegend, displayMode).
+- "just show the chart" / "graph only": displayMode "chart_only". "show the table too": displayMode "chart_and_table".
+- Do NOT include chartInstruction for raw listing queries, single-row results, or when user says "table only" or "no chart".
+
+When producing a table (and optionally a chart), respond with:
 1. A brief summary (1-2 sentences) answering the question
 2. A short title for the conversation
 3. A tableInstruction JSON object (if applicable)
+4. A chartInstruction JSON object (only when visualization is requested or implied)
 
 Format your response as JSON:
-{"summary": "Your answer here", "title": "Short title", "tableInstruction": { ... } }
-Omit tableInstruction when the answer is text-only or when refusing.`
+{"summary": "Your answer here", "title": "Short title", "tableInstruction": { ... }, "chartInstruction": { ... } }
+Omit tableInstruction when the answer is text-only or when refusing. Omit chartInstruction when no chart is needed.`
 
   const history = Array.isArray(conversationHistory)
     ? conversationHistory
@@ -139,10 +167,15 @@ Omit tableInstruction when the answer is text-only or when refusing.`
         .map((m: { role: string; content: string }) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
     : []
 
-  const userContent =
+  const userContent = [
+    prompt,
     previousTableInstruction && typeof previousTableInstruction === 'object'
-      ? `${prompt}\n\n[Previous table instruction to modify if relevant: ${JSON.stringify(previousTableInstruction)}]`
-      : prompt
+      ? `\n\n[Previous table instruction to modify if relevant: ${JSON.stringify(previousTableInstruction)}]`
+      : '',
+    previousChartInstruction && typeof previousChartInstruction === 'object'
+      ? `\n\n[Previous chart instruction to modify if relevant: ${JSON.stringify(previousChartInstruction)}]`
+      : '',
+  ].join('')
 
   const messages: { role: 'user' | 'assistant'; content: string }[] = [
     ...history,
@@ -174,15 +207,18 @@ Omit tableInstruction when the answer is text-only or when refusing.`
       summary?: string
       title?: string
       tableInstruction?: Record<string, unknown>
+      chartInstruction?: Record<string, unknown>
     }
 
     console.log('[chat] Claude raw text:', text)
     console.log('[chat] Parsed tableInstruction:', JSON.stringify(parsed.tableInstruction, null, 2))
+    console.log('[chat] Parsed chartInstruction:', JSON.stringify(parsed.chartInstruction, null, 2))
 
     res.json({
       summary: parsed.summary ?? text,
       title: parsed.title ?? prompt.slice(0, 50),
       tableInstruction: parsed.tableInstruction,
+      chartInstruction: parsed.chartInstruction,
     })
   } catch (err) {
     console.error('[chat] Claude error:', err)

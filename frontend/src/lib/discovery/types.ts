@@ -41,3 +41,31 @@ export interface TableInstruction {
   limit?: number
   pctChange?: { field: string; alias: string }
 }
+
+/** Chart type for Discovery visualization */
+export type ChartType = 'bar' | 'line' | 'area' | 'pie' | 'scatter' | 'radar' | 'composed'
+
+/** Series definition for a chart (one or more data series) */
+export interface ChartSeries {
+  dataKey: string
+  name?: string
+  color?: string
+  /** For composed charts: bar | line | area */
+  type?: 'bar' | 'line' | 'area'
+  stackId?: string
+}
+
+/** Chart instruction - how to render query result as a chart */
+export interface ChartInstruction {
+  chartType: ChartType
+  title?: string
+  xAxis?: { dataKey: string; label?: string }
+  yAxis?: { label?: string; unit?: string }
+  series: ChartSeries[]
+  showLegend?: boolean
+  showTooltip?: boolean
+  showGrid?: boolean
+  showDataLabels?: boolean
+  stacked?: boolean
+  displayMode: 'chart_only' | 'chart_and_table'
+}

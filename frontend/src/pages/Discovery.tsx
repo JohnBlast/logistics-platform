@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useGenerateImage } from 'recharts-to-png'
 import { usePipelineOutput } from '../context/PipelineOutputContext'
 import { api } from '../services/api'
 import { EmptyState } from '../components/discovery/EmptyState'
@@ -6,10 +7,13 @@ import { ConversationSidebar } from '../components/discovery/ConversationSidebar
 import { ChatInput } from '../components/discovery/ChatInput'
 import { ConversationTabs, type DiscoveryTab } from '../components/discovery/ConversationTabs'
 import { OutputTable } from '../components/discovery/OutputTable'
+import { OutputChart } from '../components/discovery/OutputChart'
+import { ChartToolbar } from '../components/discovery/ChartToolbar'
+import { ChartExportBar } from '../components/discovery/ChartExportBar'
 import { ValidateTable } from '../components/discovery/ValidateTable'
 import { getConversation, createConversation, updateConversation, listConversations } from '../services/conversationStore'
 import { execute } from '../lib/discovery/queryEngine'
-import type { TableInstruction, TableFilter } from '../lib/discovery/types'
+import type { TableInstruction, TableFilter, ChartInstruction } from '../lib/discovery/types'
 
 export function Discovery() {
   const { pipelineOutput, clearPipelineOutput } = usePipelineOutput()
@@ -18,7 +22,18 @@ export function Discovery() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState<DiscoveryTab>('conversation')
   const [clientFilters, setClientFilters] = useState<TableFilter[]>([])
+  const [localChartInstruction, setLocalChartInstruction] = useState<ChartInstruction | null>(null)
   const [claudeAvailable, setClaudeAvailable] = useState<boolean | null>(null)
+
+  const [getChartPng, { ref: chartPngRef }] = useGenerateImage<HTMLDivElement>({ type: 'image/png' })
+  const [getChartJpeg, { ref: chartJpegRef }] = useGenerateImage<HTMLDivElement>({ type: 'image/jpeg', quality: 0.92 })
+  const chartContainerRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ;(chartPngRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+      ;(chartJpegRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+    },
+    [chartPngRef, chartJpegRef]
+  )
 
   const refreshSidebar = useCallback(() => setSidebarKey((k) => k + 1), [])
 
@@ -41,6 +56,16 @@ export function Discovery() {
 
   const conv = currentId ? getConversation(currentId) : null
 
+  // Sync local chart instruction only when switching conversations, so toolbar changes (chart type, legend, grid) are not overwritten
+  useEffect(() => {
+    if (!currentId) {
+      setLocalChartInstruction(null)
+      return
+    }
+    const c = getConversation(currentId)
+    setLocalChartInstruction(c?.chartInstruction ?? null)
+  }, [currentId])
+
   const queryResult = useMemo(() => {
     if (!pipelineOutput?.flatRows?.length || !conv?.tableInstruction) return null
     try {
@@ -52,6 +77,8 @@ export function Discovery() {
   }, [pipelineOutput?.flatRows, conv?.tableInstruction])
 
   const hasTable = !!(conv?.tableInstruction && queryResult)
+  const effectiveChartInstruction = localChartInstruction ?? conv?.chartInstruction ?? null
+  const hasChart = !!(effectiveChartInstruction && queryResult)
 
   const handleSelect = (id: string) => {
     setCurrentId(id)
@@ -88,6 +115,7 @@ export function Discovery() {
       const res = await api.chat(prompt, {
         conversationHistory: history,
         previousTableInstruction: conv.tableInstruction as Record<string, unknown> | undefined,
+        previousChartInstruction: (localChartInstruction ?? conv.chartInstruction) as Record<string, unknown> | undefined,
         dataColumns,
       })
 
@@ -103,9 +131,12 @@ export function Discovery() {
         messages: newMessages,
         title: res.title || updated.title,
         tableInstruction: res.tableInstruction as typeof conv.tableInstruction | undefined,
+        chartInstruction: res.chartInstruction as typeof conv.chartInstruction | undefined,
       })
       refreshSidebar()
-      if (res.tableInstruction) setActiveTab('output')
+      setLocalChartInstruction((res.chartInstruction as ChartInstruction | undefined) ?? null)
+      if (res.chartInstruction) setActiveTab('chart')
+      else if (res.tableInstruction) setActiveTab('output')
     } catch (err) {
       const e = err as Error & { code?: string; summary?: string }
       let msg: string
@@ -173,6 +204,8 @@ export function Discovery() {
             messages={conv?.messages ?? []}
             isGenerating={isGenerating}
             hasTable={!!hasTable}
+            hasChart={!!hasChart}
+            chartInstruction={effectiveChartInstruction}
             queryResult={queryResult}
             tableInstruction={(conv?.tableInstruction ?? null) as TableInstruction | null}
             renderOutputTable={() =>
@@ -183,6 +216,28 @@ export function Discovery() {
                   clientFilters={clientFilters}
                   onFiltersChange={setClientFilters}
                 />
+              ) : null
+            }
+            renderChart={() =>
+              queryResult && effectiveChartInstruction ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ChartToolbar
+                      chartInstruction={effectiveChartInstruction}
+                      onChartInstructionChange={setLocalChartInstruction}
+                    />
+                    <ChartExportBar
+                      onDownloadPng={getChartPng}
+                      onDownloadJpeg={getChartJpeg}
+                      chartTitle={effectiveChartInstruction.title ?? conv?.title ?? 'chart'}
+                    />
+                  </div>
+                  <OutputChart
+                    queryResult={queryResult}
+                    chartInstruction={effectiveChartInstruction}
+                    containerRef={chartContainerRef}
+                  />
+                </div>
               ) : null
             }
             renderValidateTable={() =>

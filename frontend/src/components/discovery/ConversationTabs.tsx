@@ -1,9 +1,9 @@
-import type { TableInstruction } from '../../lib/discovery/types'
+import type { TableInstruction, ChartInstruction } from '../../lib/discovery/types'
 import type { QueryResult } from '../../lib/discovery/queryEngine'
 import type { StoredMessage } from '../../services/conversationStore'
 import { AiWorkingIndicator } from '../AiWorkingIndicator'
 
-export type DiscoveryTab = 'conversation' | 'output' | 'validate'
+export type DiscoveryTab = 'conversation' | 'chart' | 'output' | 'validate'
 
 interface ConversationTabsProps {
   activeTab: DiscoveryTab
@@ -11,9 +11,12 @@ interface ConversationTabsProps {
   messages: StoredMessage[]
   isGenerating: boolean
   hasTable: boolean
+  hasChart: boolean
+  chartInstruction: ChartInstruction | null
   queryResult: QueryResult | null
   tableInstruction: TableInstruction | null
   renderOutputTable: () => React.ReactNode
+  renderChart: () => React.ReactNode
   renderValidateTable: () => React.ReactNode
 }
 
@@ -23,11 +26,17 @@ export function ConversationTabs({
   messages,
   isGenerating,
   hasTable,
+  hasChart,
+  chartInstruction,
   queryResult,
   tableInstruction,
   renderOutputTable,
+  renderChart,
   renderValidateTable,
 }: ConversationTabsProps) {
+  const showOutputTab = hasTable && (!chartInstruction || chartInstruction.displayMode === 'chart_and_table')
+  const showChartTab = hasChart
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex gap-1 border-b border-black/10 shrink-0">
@@ -42,31 +51,44 @@ export function ConversationTabs({
         >
           Conversation
         </button>
+        {showChartTab && (
+          <button
+            type="button"
+            onClick={() => onTabChange('chart')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'chart'
+                ? 'text-primary border-b-2 border-primary -mb-px'
+                : 'text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)]'
+            }`}
+          >
+            Chart
+          </button>
+        )}
+        {showOutputTab && (
+          <button
+            type="button"
+            onClick={() => onTabChange('output')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'output'
+                ? 'text-primary border-b-2 border-primary -mb-px'
+                : 'text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)]'
+            }`}
+          >
+            Output
+          </button>
+        )}
         {hasTable && (
-          <>
-            <button
-              type="button"
-              onClick={() => onTabChange('output')}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'output'
-                  ? 'text-primary border-b-2 border-primary -mb-px'
-                  : 'text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)]'
-              }`}
-            >
-              Output
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('validate')}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'validate'
-                  ? 'text-primary border-b-2 border-primary -mb-px'
-                  : 'text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)]'
-              }`}
-            >
-              Validate
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => onTabChange('validate')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'validate'
+                ? 'text-primary border-b-2 border-primary -mb-px'
+                : 'text-[rgba(0,0,0,0.6)] hover:text-[rgba(0,0,0,0.87)]'
+            }`}
+          >
+            Validate
+          </button>
         )}
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -108,7 +130,16 @@ export function ConversationTabs({
             )}
           </div>
         )}
-        {activeTab === 'output' && hasTable && (
+        {activeTab === 'chart' && hasChart && (
+          <div className="p-4">
+            {queryResult && chartInstruction ? (
+              renderChart()
+            ) : (
+              <p className="text-[rgba(0,0,0,0.6)] text-sm">No chart data.</p>
+            )}
+          </div>
+        )}
+        {activeTab === 'output' && showOutputTab && (
           <div className="p-4">
             {queryResult && tableInstruction ? (
               renderOutputTable()

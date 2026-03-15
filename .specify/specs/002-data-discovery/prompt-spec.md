@@ -9,8 +9,8 @@
 | **LLM model** | `claude-sonnet-4-20250514` |
 | **Max tokens** | 4096 |
 | **Endpoint** | `POST /api/chat` |
-| **Prompt version** | 1.0.0 |
-| **Last updated** | 2026-02-20 |
+| **Prompt version** | 2.0.0 |
+| **Last updated** | 2026-03-15 |
 
 ---
 
@@ -21,7 +21,7 @@ The system prompt is composed of four sections, assembled at request time:
 ```
 ┌──────────────────────────────────┐
 │  Section 1: Role & Task          │  Static
-│  Section 2: Schema Reference     │  Static (TABLE_INSTRUCTION_SCHEMA)
+│  Section 2: Schema Reference     │  Static (TABLE_INSTRUCTION_SCHEMA + CHART_INSTRUCTION_SCHEMA)
 │  Section 3: Data Column Context  │  Dynamic (injected per request)
 │  Section 4: Rules & Examples     │  Static
 └──────────────────────────────────┘
@@ -35,7 +35,7 @@ and loads data using natural language.
 
 Your task: Interpret the user's question and produce EITHER:
 1. A text-only answer (when no table is needed, or when refusing)
-2. A summary PLUS a TableInstruction JSON for the client to execute
+2. A summary PLUS a TableInstruction JSON for the client to execute (and optionally a ChartInstruction when the user wants a chart/graph)
 ```
 
 ### Section 2: Schema Reference (static constant `TABLE_INSTRUCTION_SCHEMA`)
@@ -46,6 +46,13 @@ Defines the full `TableInstruction` JSON schema with:
 - Status enum values per entity
 - Route field guidance (no "route" field; use groupBy on collection + delivery)
 - Vehicle type enum values
+
+**CHART_INSTRUCTION_SCHEMA** (optional output when visualization is appropriate):
+- `chartType`: bar | line | area | pie | scatter | radar | composed
+- `title`, `xAxis` (dataKey, label), `yAxis` (label, unit)
+- `series`: array of { dataKey, name?, color?, type? (for composed), stackId? }
+- `showLegend`, `showTooltip`, `showGrid`, `stacked`, `displayMode`: "chart_only" | "chart_and_table"
+- `series[].dataKey` must match an aggregation alias from tableInstruction; `xAxis.dataKey` must match a groupBy field
 
 ### Section 3: Data Column Context (dynamic injection point `dataSchema`)
 
@@ -89,13 +96,15 @@ Field mapping guide (use the column name that exists in the list above):
 - Jobs from city X
 - Jobs starting from date Y
 - Jobs by driver Z
-- Follow-ups modify `previousTableInstruction`
+- Follow-ups modify `previousTableInstruction` (and `previousChartInstruction` when modifying charts)
 - Ambiguous/off-topic → text-only refusal
+- Chart: when user asks for chart/graph/plot, include `chartInstruction`; trend → line, comparison → bar, distribution → pie; "just the chart" → displayMode "chart_only"
 
 **Output format**:
 ```json
-{"summary": "...", "title": "...", "tableInstruction": { ... }}
+{"summary": "...", "title": "...", "tableInstruction": { ... }, "chartInstruction": { ... } }
 ```
+Omit `chartInstruction` when no chart is needed.
 
 ---
 
@@ -105,6 +114,7 @@ Field mapping guide (use the column name that exists in the list above):
 |----------------|--------|---------------|---------|
 | `dataColumns` | `Object.keys(pipelineOutput.flatRows[0])` | When pipeline data exists | Ensures Claude uses exact column names from actual data |
 | `previousTableInstruction` | Frontend conversation state | On follow-up queries | Allows Claude to modify an existing instruction |
+| `previousChartInstruction` | Frontend conversation state | On follow-up queries when chart exists | Allows Claude to modify chart type, series, displayMode, etc. |
 | `conversationHistory` | Frontend conversation state | Always (may be empty) | Multi-turn context |
 
 ---
@@ -122,6 +132,15 @@ Field mapping guide (use the column name that exists in the list above):
 | R-7 | Filters use `operator`, not `op` | `op` is for aggregations only |
 | R-8 | Ambiguous or off-topic queries → text-only response, no `tableInstruction` | Prevents garbage table instructions |
 | R-9 | Follow-ups modify `previousTableInstruction` where possible | Maintains conversation continuity |
+| R-10 | When user asks for a chart/graph/plot/visualization, include `chartInstruction`; `series[].dataKey` must match an aggregation alias; `xAxis.dataKey` must match a groupBy field | Chart renders from same data as table |
+| R-11 | For trend queries (groupBy on date): default `chartType` to "line" | Sensible default for time series |
+| R-12 | For comparison queries (groupBy on categorical, limit > 1): default `chartType` to "bar" | Sensible default for comparisons |
+| R-13 | For distribution/proportion (single metric, few groups): default `chartType` to "pie" | Sensible default for proportions |
+| R-14 | Default chart options: `showLegend: true`, `showTooltip: true`, `showGrid: true` | Good UX |
+| R-15 | "make it a line chart" / "stack the bars" / "remove the legend": update `previousChartInstruction` and return modified `chartInstruction` | Chart modification follow-ups |
+| R-16 | "just show the chart" / "graph only" → `displayMode: "chart_only"`; "show the table too" → `displayMode: "chart_and_table"` | Display mode from user intent |
+| R-17 | Do NOT include `chartInstruction` for raw listing queries, single-row results, or when user says "table only" / "no chart" | Avoid inappropriate charts |
+| R-18 | Chart-only responses still require a `tableInstruction` (data is same; chart visualizes it) | Query engine always runs tableInstruction |
 
 ---
 
@@ -138,6 +157,10 @@ Each example maps a query pattern to the exact `TableInstruction` Claude should 
 | 5 | "jobs from city X" | `dataSource: "loads_and_quotes"`, `filters: [{field:"collection_city",operator:"eq",value:"X"}]` |
 | 6 | "jobs starting from date Y" | `dataSource: "loads_and_quotes"`, `filters: [{field:"collection_date",operator:"gte",value:"Y"}]` |
 | 7 | "jobs by driver Z" | `dataSource: "loads_and_quotes"`, `filters: [{field:"driver_name",operator:"eq",value:"Z"}]` |
+| 8 | "bar chart of top 5 routes by revenue" | Same tableInstruction as #1; add `chartInstruction`: `chartType:"bar"`, `xAxis.dataKey` = first groupBy or composite, `series:[{dataKey:"total_revenue"}]`, `displayMode:"chart_and_table"` |
+| 9 | "monthly revenue trend" | tableInstruction with groupBy collection_date, groupByFormats month, sum quoted_price alias revenue; chartInstruction: `chartType:"line"`, `series:[{dataKey:"revenue"}]` |
+| 10 | "pie chart of vehicle types" | tableInstruction groupBy vehicle_type, count; chartInstruction: `chartType:"pie"`, `series:[{dataKey:"job_count"}]`, `displayMode:"chart_only"` or "chart_and_table" |
+| 11 | "make it a line chart" (follow-up) | Modify previousChartInstruction: `chartType:"line"`; return updated chartInstruction |
 
 ---
 
@@ -150,6 +173,7 @@ The API returns JSON with these fields:
 | `summary` | `string` | Yes | 1-2 sentence answer to the user's question |
 | `title` | `string` | Yes | Short title for the conversation (max ~50 chars) |
 | `tableInstruction` | `TableInstruction \| undefined` | No | Structured query for the client engine. Omitted for text-only answers. |
+| `chartInstruction` | `ChartInstruction \| undefined` | No | How to render the query result as a chart. Omitted when no chart requested. |
 
 ---
 
@@ -170,6 +194,7 @@ The API returns JSON with these fields:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2026-02-20 | Initial specification. Documents prompt structure, rules, examples, and dynamic injection as implemented. |
+| 2.0.0 | 2026-03-15 | Added ChartInstruction schema, chart rules (R-10–R-18), previousChartInstruction injection, chart few-shot examples, chartInstruction in response contract. |
 
 ---
 

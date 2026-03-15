@@ -10,7 +10,7 @@ Discovery converts natural language prompts into structured `TableInstruction` J
 |--------|----------|
 | **Input** | User-entered free text (plain English) |
 | **Mediator** | Claude API with system prompt + data column context |
-| **Output** | `TableInstruction` JSON that the client query engine can execute |
+| **Output** | `TableInstruction` JSON (and optionally `ChartInstruction` JSON when visualization is requested) |
 | **Fallback** | Text-only response when no table is applicable |
 | **Failure** | Show error message; user must rephrase. Never show raw LLM output as a table. |
 | **Scope** | Analytics queries over the pipeline's flat table (loads_and_quotes, loads, quotes views) |
@@ -39,6 +39,11 @@ User prompts fall into these intent categories. The LLM must classify intent bef
 | **Revenue aggregation** | Sum revenue globally or by group | "total revenue", "revenue by month" |
 | **Trend analysis** | Time-series grouping with optional pct change | "monthly revenue trend", "revenue by week" |
 | **Raw listing** | Show rows with optional sort/limit, no aggregation | "show my last 10 loads", "list all loads" |
+| **Visualization request (explicit)** | User explicitly asks for a chart | "show me a bar chart of revenue by month", "pie chart of vehicle types", "plot delivery trends" |
+| **Visualization request (implicit)** | Query pattern implies a chart is useful | "revenue trend over time", "compare routes", "distribution of vehicle types" |
+| **Chart modification** | User wants to change an existing chart | "make it a line chart", "add revenue to the chart", "remove the legend", "stack the bars" |
+| **Chart-only** | User wants only the visualization | "just show the chart", "graph only" |
+| **Export request** | User wants to download the chart | "download as PNG", "save this chart" |
 
 ---
 
@@ -104,6 +109,28 @@ When the user says a vehicle type in natural language, the LLM MUST use the exac
 | "26 tonne" | `rigid_26t` |
 | "artic" / "articulated" | `articulated` |
 
+### 3.5 ChartInstruction and Chart Modification
+
+When the user requests a chart/graph/plot or the query implies a visualization, the LLM MUST also produce a `ChartInstruction` (in addition to `TableInstruction`). Rules:
+
+- `series[].dataKey` MUST match an aggregation `alias` from the `TableInstruction`.
+- `xAxis.dataKey` MUST match a `groupBy` field from the `TableInstruction`.
+- For trend queries (groupBy on date): default `chartType` to `"line"`.
+- For comparison queries (groupBy on categorical, limit > 1): default `chartType` to `"bar"`.
+- For distribution/proportion (single metric, few groups): default `chartType` to `"pie"`.
+- `displayMode`: `"chart_only"` when user says "just the chart" / "graph only"; otherwise `"chart_and_table"`.
+- For follow-ups that modify the chart (e.g. "make it a line chart", "stack the bars"), the LLM MUST update `previousChartInstruction` and return the modified `chartInstruction`.
+
+Phrase → ChartInstruction mapping (examples):
+
+| Phrase pattern | chartType | series | displayMode |
+|----------------|-----------|--------|-------------|
+| "bar chart of revenue by route" | `bar` | `[{dataKey:"total_revenue"}]` | `chart_and_table` |
+| "revenue trend by month" | `line` | `[{dataKey:"revenue"}]` | `chart_and_table` |
+| "pie chart of vehicle type distribution" | `pie` | `[{dataKey:"job_count"}]` | `chart_only` |
+| "compare drivers by job count and revenue" | `composed` | `[{dataKey:"job_count",type:"bar"},{dataKey:"total_revenue",type:"line"}]` | `chart_and_table` |
+| "plot revenue over time as area chart" | `area` | `[{dataKey:"revenue"}]` | `chart_and_table` |
+
 ---
 
 ## 4. Acceptance Scenarios (Given/When/Then)
@@ -158,6 +185,36 @@ When the user says a vehicle type in natural language, the LLM MUST use the exac
 |----|-------|------|------|
 | NL-D-10 | Flat table with raw column names (`Collection Town`, `Quoted Amount`, `Load Number`) instead of canonical names | User asks "Top 5 profitable routes" and `dataColumns` includes raw names | LLM uses actual column names from `dataColumns`. Query engine resolves aliases via `getRowValue` and returns correct aggregation. |
 
+### 4.9 Chart: Bar chart of routes by revenue
+
+| ID | Given | When | Then |
+|----|-------|------|------|
+| NL-D-11 | Flat table with routes and `quoted_price` | User asks "Bar chart of top 5 routes by revenue" | LLM produces `tableInstruction` (same as top 5 profitable routes) and `chartInstruction` with `chartType:"bar"`, `xAxis.dataKey` matching groupBy (e.g. collection_city or a composite label), `series:[{dataKey:"total_revenue"}]`, `displayMode:"chart_and_table"`. |
+
+### 4.10 Chart: Monthly revenue trend (line)
+
+| ID | Given | When | Then |
+|----|-------|------|------|
+| NL-D-12 | Flat table with `collection_date`, `quoted_price` | User asks "Monthly revenue trend" | LLM produces `tableInstruction` with `groupBy:["collection_date"]`, `groupByFormats:{collection_date:"month"}`, `aggregations:[{field:"quoted_price",op:"sum",alias:"revenue"}]` and `chartInstruction` with `chartType:"line"`, `series:[{dataKey:"revenue"}]`. |
+
+### 4.11 Chart: Pie chart of vehicle types
+
+| ID | Given | When | Then |
+|----|-------|------|------|
+| NL-D-13 | Flat table with `vehicle_type` | User asks "Pie chart of vehicle type distribution" | LLM produces `tableInstruction` (groupBy vehicle_type, count) and `chartInstruction` with `chartType:"pie"`, `series:[{dataKey:"job_count"}]`, `displayMode:"chart_only"` (or `chart_and_table`). |
+
+### 4.12 Chart modification follow-up
+
+| ID | Given | When | Then |
+|----|-------|------|------|
+| NL-D-14 | Current response has a bar chart | User says "Make it a line chart" | LLM returns same or updated `tableInstruction` and `chartInstruction` with `chartType:"line"` (modifying `previousChartInstruction`). |
+
+### 4.13 Chart-only display mode
+
+| ID | Given | When | Then |
+|----|-------|------|------|
+| NL-D-15 | Current response has table and chart | User says "Just show the chart" | LLM returns `chartInstruction` with `displayMode:"chart_only"`. UI shows only Chart tab (no Output tab). |
+
 ---
 
 ## 5. Edge Cases
@@ -174,6 +231,9 @@ When the user says a vehicle type in natural language, the LLM MUST use the exac
 | NL-D-EC-08 | Rate limit exceeded (> 10 requests / 30 min) | API returns 429 with retry message. |
 | NL-D-EC-09 | LLM returns malformed JSON | `extractJsonObject` fails; API returns text-only summary. |
 | NL-D-EC-10 | Follow-up query: "make that monthly" after a revenue query | LLM modifies `previousTableInstruction` to add `groupByFormats: { collection_date: "month" }`. |
+| NL-D-EC-11 | User asks for a chart but data has no aggregation (raw listing) | LLM may omit `chartInstruction` or produce table-only; chart only when table has groupBy/aggregations. |
+| NL-D-EC-12 | User says "table only" or "no chart" | LLM does NOT include `chartInstruction`. |
+| NL-D-EC-13 | Follow-up "show the table too" after chart_only | LLM returns `chartInstruction` with `displayMode:"chart_and_table"`. |
 
 ---
 
@@ -188,3 +248,4 @@ When the user says a vehicle type in natural language, the LLM MUST use the exac
 | §9 Edge Cases | §5 Edge Cases |
 | §4 FR – Guardrails | §3.2 Prohibited Outputs |
 | §1a View derivation | §3.1 Field Resolution Rules (loads_and_quotes already filters accepted) |
+| Chart / visualization | §2 Visualization categories, §3.5 ChartInstruction, §4.9–4.13, §5 NL-D-EC-11 to EC-13 |

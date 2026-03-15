@@ -267,6 +267,64 @@ For unit tests, the following sample data is used (also in `queryEngine.acceptan
 
 ---
 
+### E2E-11: Bar Chart of Top 5 Routes by Revenue
+
+| Element | Value |
+|---------|-------|
+| **Preconditions** | Same as E2E-01 (multiple routes with quoted_price) |
+| **User query** | "Bar chart of top 5 routes by revenue" |
+| **Expected TableInstruction** | Same as E2E-01 |
+| **Expected ChartInstruction** | `chartType: "bar"`, `xAxis.dataKey` matches a groupBy field (e.g. `collection_city` or first groupBy), `series: [{ dataKey: "total_revenue" }]`, `displayMode: "chart_and_table"` (or `chart_only`) |
+| **Expected output** | Table as in E2E-01; chart tab renders bar chart with same data |
+
+---
+
+### E2E-12: Monthly Revenue Trend (Line Chart)
+
+| Element | Value |
+|---------|-------|
+| **Preconditions** | Pipeline data with `collection_date`, `quoted_price` |
+| **User query** | "Monthly revenue trend" |
+| **Expected TableInstruction** | `dataSource: "loads_and_quotes"`, `groupBy: ["collection_date"]`, `groupByFormats: { collection_date: "month" }`, `aggregations: [{ field: "quoted_price", op: "sum", alias: "revenue" }]`, `sort: [{ field: "collection_date", dir: "asc" }]` |
+| **Expected ChartInstruction** | `chartType: "line"`, `series: [{ dataKey: "revenue" }]`, `xAxis.dataKey: "collection_date"` (or grouped month key) |
+| **Expected output** | Rows per month with `revenue`; line chart displays trend |
+
+---
+
+### E2E-13: Pie Chart of Vehicle Types
+
+| Element | Value |
+|---------|-------|
+| **Preconditions** | Pipeline data with `vehicle_type` (e.g. small_van, medium_van) |
+| **User query** | "Pie chart of vehicle type distribution" |
+| **Expected TableInstruction** | `dataSource: "loads_and_quotes"`, `groupBy: ["vehicle_type"]`, `aggregations: [{ op: "count", alias: "job_count" }]` |
+| **Expected ChartInstruction** | `chartType: "pie"`, `series: [{ dataKey: "job_count" }]`, `displayMode: "chart_only"` or `"chart_and_table"` |
+| **Expected output** | Table: vehicle_type, job_count; pie chart shows distribution |
+
+---
+
+### E2E-14: Chart Modification Follow-up
+
+| Element | Value |
+|---------|-------|
+| **Preconditions** | Current conversation has a bar chart (e.g. from E2E-11) |
+| **User query** | "Make it a line chart" |
+| **Expected behaviour** | LLM returns same or updated `tableInstruction` and `chartInstruction` with `chartType: "line"` (modifying `previousChartInstruction`) |
+| **Expected output** | Chart re-renders as line chart |
+
+---
+
+### E2E-15: Show Only the Chart (displayMode)
+
+| Element | Value |
+|---------|-------|
+| **Preconditions** | Current response has table and chart (`displayMode: "chart_and_table"`) |
+| **User query** | "Just show the chart" |
+| **Expected ChartInstruction** | Same data/series; `displayMode: "chart_only"` |
+| **Expected output** | UI shows Conversation, Chart, Validate tabs (no Output tab); Chart tab displays chart only |
+
+---
+
 ## 4. Boundary State Expectations
 
 Each scenario's data passes through these boundaries. Expected state at each:
@@ -284,7 +342,7 @@ deriveViews → [filtered: tenant match, quote_status=accepted, distinct by load
     ↓
 Query Engine → [field aliases resolved, numbers parsed, locations matched, aggregated]
     ↓
-OutputTable → [all result columns rendered]
+OutputTable / OutputChart → [table columns rendered; chart renders same rows per ChartInstruction]
 ```
 
 | Boundary | Key assertion |
